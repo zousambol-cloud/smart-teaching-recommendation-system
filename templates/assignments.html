@@ -1,17 +1,18 @@
 {% extends "base.html" %}
 {% block title %}作业中心{% endblock %}
 {% block content %}
-<section class="page-head">
+<section class="page-header">
   <p class="eyebrow">Assignment Center</p>
   <h2>作业中心</h2>
-  <p>展示截止时间、提交率、评分和反馈，适合做教学过程管理页面。</p>
+  <p>以教学过程管理视角展示作业节奏、提交率、评分结果和教师反馈。</p>
 </section>
-<article class="panel">
+
+<article class="surface-card table-card">
   <table class="data-table">
     <thead>
       <tr>
         <th>课程</th>
-        <th>作业</th>
+        <th>作业名称</th>
         <th>截止日期</th>
         <th>状态</th>
         <th>提交率</th>
@@ -25,7 +26,7 @@
           <td>{{ item.course_title }}</td>
           <td>{{ item.title }}</td>
           <td>{{ item.due_date }}</td>
-          <td>{{ item.status }}</td>
+          <td><span class="table-badge">{{ item.status }}</span></td>
           <td>{{ item.submission_rate }}%</td>
           <td>{{ item.score if item.score else '-' }}</td>
           <td>{{ item.feedback }}</td>

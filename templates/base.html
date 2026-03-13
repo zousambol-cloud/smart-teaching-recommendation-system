@@ -7,30 +7,36 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
-    <div class="page-shell">
-      <aside class="sidebar">
-        <a class="brand" href="{{ url_for('index') }}">
-          <p class="eyebrow">Insight Campus</p>
+    <div class="app-shell">
+      <aside class="app-sidebar">
+        <a class="brand-panel" href="{{ url_for('index') }}">
+          <p class="eyebrow">Campus Intelligence</p>
           <h1>智慧教学推荐系统</h1>
-          <p class="subtitle">课程运营、资源协同与个性化推荐的统一入口。</p>
+          <p>把课程进度、资源分发、作业反馈和推荐解释串成统一产品体验。</p>
         </a>
-        <nav class="nav">
-          <a href="{{ url_for('index') }}">系统总览</a>
-          <a href="{{ url_for('courses') }}">课程中心</a>
-          <a href="{{ url_for('assignments') }}">作业中心</a>
-          <a href="{{ url_for('resources') }}">资源中心</a>
-          <a href="{{ url_for('announcements') }}">通知中心</a>
-          <a href="{{ url_for('analytics') }}">学习分析</a>
-          <a href="{{ url_for('recommendations') }}">个性化推荐</a>
-          <a href="{{ url_for('refresh') }}">刷新平台内容</a>
+
+        <nav class="sidebar-nav">
+          <a class="{% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">系统总览</a>
+          <a class="{% if request.endpoint == 'courses' %}active{% endif %}" href="{{ url_for('courses') }}">课程中心</a>
+          <a class="{% if request.endpoint == 'assignments' %}active{% endif %}" href="{{ url_for('assignments') }}">作业中心</a>
+          <a class="{% if request.endpoint == 'resources' %}active{% endif %}" href="{{ url_for('resources') }}">资源中心</a>
+          <a class="{% if request.endpoint == 'announcements' %}active{% endif %}" href="{{ url_for('announcements') }}">通知中心</a>
+          <a class="{% if request.endpoint == 'analytics' %}active{% endif %}" href="{{ url_for('analytics') }}">学习分析</a>
+          <a class="{% if request.endpoint == 'recommendations' %}active{% endif %}" href="{{ url_for('recommendations') }}">个性化推荐</a>
         </nav>
+
+        <div class="sidebar-card">
+          <span>系统操作</span>
+          <a class="mini-link" href="{{ url_for('refresh') }}">刷新平台内容</a>
+        </div>
       </aside>
-      <main class="content">
+
+      <main class="app-main">
         {% with messages = get_flashed_messages() %}
           {% if messages %}
             <div class="flash-stack">
               {% for message in messages %}
-                <div class="flash">{{ message }}</div>
+                <div class="flash-message">{{ message }}</div>
               {% endfor %}
             </div>
           {% endif %}
