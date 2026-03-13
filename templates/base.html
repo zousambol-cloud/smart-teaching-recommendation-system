@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}智慧教学推荐系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="eyebrow">Smart Education</p>
+          <h1>智慧教学推荐系统</h1>
+          <p class="subtitle">课程管理、资源共享、学习分析与混合推荐一体化演示平台。</p>
+        </div>
+        <nav class="nav">
+          <a href="{{ url_for('index') }}">系统总览</a>
+          <a href="{{ url_for('resources') }}">资源共享</a>
+          <a href="{{ url_for('recommendations') }}">个性化推荐</a>
+          <a href="{{ url_for('reset') }}">重置演示数据</a>
+        </nav>
+      </aside>
+      <main class="content">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for message in messages %}
+                <div class="flash">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>

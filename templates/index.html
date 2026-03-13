@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}系统总览{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">毕业设计原型</p>
+    <h2>围绕教学管理与推荐算法构建的智慧教学系统</h2>
+    <p class="hero-copy">
+      该演示项目根据开题报告实现用户管理、课程管理、作业管理、资源共享、学习分析、
+      通知发布与混合推荐模块，适合直接用于系统展示与论文截图。
+    </p>
+  </div>
+  <form class="user-switcher" method="get">
+    <label for="user_id">当前演示用户</label>
+    <select id="user_id" name="user_id" onchange="this.form.submit()">
+      {% for user in users %}
+        <option value="{{ user.id }}" {% if user.id == selected_user_id %}selected{% endif %}>{{ user.name }} · {{ user.role }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</section>
+
+<section class="metric-grid">
+  <article class="metric-card accent">
+    <span>当前用户</span>
+    <strong>{{ metrics.user.name }}</strong>
+    <p>{{ metrics.user.major }}</p>
+  </article>
+  <article class="metric-card">
+    <span>课程总数</span>
+    <strong>{{ metrics.course_count }}</strong>
+    <p>覆盖编程、数据库、AI 与工程实践</p>
+  </article>
+  <article class="metric-card">
+    <span>资源总数</span>
+    <strong>{{ metrics.resource_count }}</strong>
+    <p>课件、视频、文档统一管理</p>
+  </article>
+  <article class="metric-card">
+    <span>待处理作业</span>
+    <strong>{{ metrics.pending_assignments }}</strong>
+    <p>支持提醒、提交与反馈</p>
+  </article>
+  <article class="metric-card">
+    <span>平均成绩</span>
+    <strong>{{ metrics.average_score }}</strong>
+    <p>已批改作业自动统计</p>
+  </article>
+  <article class="metric-card">
+    <span>活跃学习日</span>
+    <strong>{{ metrics.active_days }}</strong>
+    <p>基于行为日志分析</p>
+  </article>
+</section>
+
+<section class="panel-grid">
+  <article class="panel">
+    <div class="panel-head">
+      <h3>课程管理</h3>
+      <span>Course Management</span>
+    </div>
+    <div class="course-list">
+      {% for course in courses %}
+        <div class="course-item">
+          <div>
+            <h4>{{ course.title }}</h4>
+            <p>{{ course.description }}</p>
+          </div>
+          <div class="tag-row">
+            <span>{{ course.category }}</span>
+            <span>{{ course.teacher }}</span>
+            {% for tag in course.tags|split_tags %}
+              <span>{{ tag }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-head">
+      <h3>学习画像</h3>
+      <span>Learning Profile</span>
+    </div>
+    <div class="tag-cloud">
+      {% for tag, score in metrics.top_tags %}
+        <div class="tag-pill">
+          <strong>{{ tag }}</strong>
+          <span>{{ '%.1f'|format(score) }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <p class="note">{{ metrics.user.bio }}</p>
+  </article>
+
+  <article class="panel wide">
+    <div class="panel-head">
+      <h3>作业管理</h3>
+      <span>Assignment Workflow</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>课程</th>
+          <th>作业</th>
+          <th>截止日期</th>
+          <th>状态</th>
+          <th>分数</th>
+          <th>反馈</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in assignments %}
+          <tr>
+            <td>{{ item.course_title }}</td>
+            <td>{{ item.title }}</td>
+            <td>{{ item.due_date }}</td>
+            <td>{{ item.status }}</td>
+            <td>{{ item.score if item.score else '-' }}</td>
+            <td>{{ item.feedback }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+  <article class="panel">
+    <div class="panel-head">
+      <h3>通知与统计</h3>
+      <span>Announcements</span>
+    </div>
+    <div class="notification-list">
+      {% for item in notifications %}
+        <div class="notification-item">
+          <p class="meta">{{ item.category }} · {{ item.created_at }}</p>
+          <h4>{{ item.title }}</h4>
+          <p>{{ item.content }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-head">
+      <h3>推荐结果预览</h3>
+      <span>Hybrid Recommendation</span>
+    </div>
+    <div class="recommend-list">
+      {% for item in recommendations %}
+        <div class="recommend-item">
+          <div>
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.course_title }} · {{ item.resource_type }}</p>
+          </div>
+          <strong>{{ item.score }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+    <a class="cta-link" href="{{ url_for('recommendations', user_id=selected_user_id) }}">查看完整推荐解释</a>
+  </article>
+</section>
+{% endblock %}

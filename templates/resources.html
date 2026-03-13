@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}资源共享{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <div>
+    <p class="eyebrow">Resource Hub</p>
+    <h2>统一管理教学课件、视频与文档</h2>
+  </div>
+  <form class="search-box" method="get">
+    <input type="text" name="q" value="{{ query }}" placeholder="搜索资源标题、课程、标签">
+    <button type="submit">搜索</button>
+  </form>
+</section>
+
+<section class="resource-grid">
+  {% for item in resources %}
+    <article class="resource-card">
+      <p class="meta">{{ item.course_title }} · {{ item.resource_type }}</p>
+      <h3>{{ item.title }}</h3>
+      <div class="tag-row">
+        {% for tag in item.tags|split_tags %}
+          <span>{{ tag }}</span>
+        {% endfor %}
+      </div>
+      <div class="resource-stats">
+        <span>下载 {{ item.downloads }}</span>
+        <span>评分 {{ item.rating }}</span>
+      </div>
+      <a class="cta-link" href="{{ item.url }}" target="_blank" rel="noreferrer">打开资源链接</a>
+    </article>
+  {% else %}
+    <article class="panel">
+      <h3>没有找到匹配资源</h3>
+      <p>可以尝试使用课程名、资源类型或标签进行检索。</p>
+    </article>
+  {% endfor %}
+</section>
+{% endblock %}

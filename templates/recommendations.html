@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}个性化推荐{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Hybrid Recommendation</p>
+    <h2>内容推荐 + 协同过滤 + 热门兜底</h2>
+    <p class="hero-copy">
+      系统基于兴趣标签和历史行为构建用户画像，再融合相似用户偏好与热门资源分数，
+      输出 Top-N 推荐列表，并保留冷启动兜底能力。
+    </p>
+  </div>
+  <form class="user-switcher" method="get">
+    <label for="user_id">推荐对象</label>
+    <select id="user_id" name="user_id" onchange="this.form.submit()">
+      {% for item in users %}
+        <option value="{{ item.id }}" {% if item.id == selected_user_id %}selected{% endif %}>{{ item.name }} · {{ item.role }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</section>
+
+<section class="panel-grid">
+  <article class="panel">
+    <div class="panel-head">
+      <h3>用户兴趣向量</h3>
+      <span>{{ user.name }}</span>
+    </div>
+    <div class="tag-cloud">
+      {% for tag, score in interest_vector %}
+        <div class="tag-pill">
+          <strong>{{ tag }}</strong>
+          <span>{{ '%.1f'|format(score) }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel wide">
+    <div class="panel-head">
+      <h3>Top-N 推荐列表</h3>
+      <span>评分公式 = 0.5 内容 + 0.35 协同 + 0.15 热门</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>资源</th>
+          <th>课程</th>
+          <th>标签</th>
+          <th>内容</th>
+          <th>协同</th>
+          <th>热门</th>
+          <th>总分</th>
+          <th>行为采集</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+          <tr>
+            <td><a href="{{ item.url }}" target="_blank" rel="noreferrer">{{ item.title }}</a></td>
+            <td>{{ item.course_title }}</td>
+            <td>{{ item.tags|join(' / ') }}</td>
+            <td>{{ item.content_score }}</td>
+            <td>{{ item.collab_score }}</td>
+            <td>{{ item.hot_score }}</td>
+            <td><strong>{{ item.score }}</strong></td>
+            <td>
+              <form method="post" action="{{ url_for('log_activity') }}" class="inline-form">
+                <input type="hidden" name="user_id" value="{{ selected_user_id }}">
+                <input type="hidden" name="resource_id" value="{{ item.id }}">
+                <select name="action">
+                  <option value="view">浏览</option>
+                  <option value="favorite">收藏</option>
+                  <option value="rate">高评分</option>
+                </select>
+                <button type="submit">记录</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}
