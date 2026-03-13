@@ -357,11 +357,16 @@ def resource_stats(db: sqlite3.Connection, resource_id: int) -> dict[str, float]
         "SELECT COUNT(*) FROM activity_logs WHERE resource_id = ? AND action IN ('view', 'favorite', 'rate', 'download')",
         (resource_id,),
     ).fetchone()[0]
+    favorites = db.execute(
+        "SELECT COUNT(*) FROM activity_logs WHERE resource_id = ? AND action = 'favorite'",
+        (resource_id,),
+    ).fetchone()[0]
     return {
         "avg_rating": round(float(rating_row["avg_rating"] or 0), 2),
         "rating_count": int(rating_row["total"]),
         "downloads": downloads,
         "views": views,
+        "favorites": favorites,
     }
 
 
@@ -450,6 +455,10 @@ def resource_rows(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
             (row["id"], user_id),
         ).fetchone()
         item["my_rating"] = my_rating["rating"] if my_rating else None
+        item["is_favorited"] = db.execute(
+            "SELECT 1 FROM activity_logs WHERE user_id = ? AND resource_id = ? AND action = 'favorite' LIMIT 1",
+            (user_id, row["id"]),
+        ).fetchone() is not None
         result.append(item)
     return result
 
@@ -1060,6 +1069,29 @@ def download_resource(resource_id: int) -> Any:
         download_name=f"{secure_filename(row['title']) or 'resource'}.txt",
         mimetype="text/plain",
     )
+
+
+@app.route("/resources/<int:resource_id>/favorite", methods=["POST"])
+def favorite_resource(resource_id: int) -> Any:
+    require_roles("student")
+    db = get_db()
+    resource = db.execute("SELECT course_id FROM resources WHERE id = ?", (resource_id,)).fetchone()
+    if resource is None:
+        abort(404)
+    exists = db.execute(
+        "SELECT 1 FROM activity_logs WHERE user_id = ? AND resource_id = ? AND action = 'favorite' LIMIT 1",
+        (current_user_id(), resource_id),
+    ).fetchone()
+    if exists is None:
+        db.execute(
+            "INSERT INTO activity_logs (user_id, resource_id, course_id, action, weight, created_at) VALUES (?, ?, ?, 'favorite', 2.5, ?)",
+            (current_user_id(), resource_id, resource["course_id"], now_string()),
+        )
+        db.commit()
+        flash("资源已加入收藏。")
+    else:
+        flash("该资源已在收藏记录中。")
+    return redirect(url_for("resources", user_id=current_user_id()))
 
 
 @app.route("/resources/<int:resource_id>/rate", methods=["POST"])

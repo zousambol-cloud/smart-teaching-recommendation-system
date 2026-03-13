@@ -233,6 +233,36 @@ button {
 
 .inline-form { display: grid; gap: 8px; }
 
+.link-button,
+.ghost-button {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.resource-dialog {
+  width: min(720px, 92vw);
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.resource-dialog::backdrop {
+  background: rgba(20, 20, 20, 0.45);
+}
+
+.dialog-card {
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--panel);
+  border: 1px solid rgba(215, 200, 179, 0.85);
+  box-shadow: var(--shadow);
+}
+
 @media (max-width: 1200px) {
   .shell,
   .hero,

@@ -17,7 +17,7 @@
       <h3>{{ item.title }}</h3>
       <p>{{ item.course_title }} · {{ item.resource_type }}</p>
       <p>{{ item.summary }}</p>
-      <p>浏览：{{ item.views }} · 下载：{{ item.downloads }} · 平均评分：{{ item.avg_rating }}（{{ item.rating_count }}人）</p>
+      <p>浏览：{{ item.views }} · 收藏：{{ item.favorites }} · 下载：{{ item.downloads }} · 平均评分：{{ item.avg_rating }}（{{ item.rating_count }}人）</p>
       <div class="tag-row">
         {% for tag in item.tags|split_tags %}
           <span>{{ tag }}</span>
@@ -27,6 +27,10 @@
         <a href="{{ url_for('open_resource', resource_id=item.id, user_id=user_id) }}">打开资源</a>
         <a href="{{ url_for('download_resource', resource_id=item.id, user_id=user_id) }}">下载导读</a>
       </div>
+      <form method="post" action="{{ url_for('favorite_resource', resource_id=item.id) }}">
+        <input type="hidden" name="user_id" value="{{ user_id }}">
+        <button type="submit">{% if item.is_favorited %}已收藏{% else %}收藏资源{% endif %}</button>
+      </form>
       <form method="post" action="{{ url_for('rate_resource', resource_id=item.id) }}">
         <input type="hidden" name="user_id" value="{{ user_id }}">
         <label>我的评分</label>
