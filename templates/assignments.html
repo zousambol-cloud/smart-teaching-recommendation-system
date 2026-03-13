@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}作业中心{% endblock %}
+{% block content %}
+<section class="page-head">
+  <p class="eyebrow">Assignment Center</p>
+  <h2>作业中心</h2>
+  <p>展示截止时间、提交率、评分和反馈，适合做教学过程管理页面。</p>
+</section>
+<article class="panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>课程</th>
+        <th>作业</th>
+        <th>截止日期</th>
+        <th>状态</th>
+        <th>提交率</th>
+        <th>分数</th>
+        <th>反馈</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in assignments %}
+        <tr>
+          <td>{{ item.course_title }}</td>
+          <td>{{ item.title }}</td>
+          <td>{{ item.due_date }}</td>
+          <td>{{ item.status }}</td>
+          <td>{{ item.submission_rate }}%</td>
+          <td>{{ item.score if item.score else '-' }}</td>
+          <td>{{ item.feedback }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</article>
+{% endblock %}

@@ -4,13 +4,13 @@
 <section class="hero">
   <div>
     <p class="eyebrow">Hybrid Recommendation</p>
-    <h2>内容推荐 + 协同过滤 + 热门兜底</h2>
+    <h2>个性化推荐</h2>
     <p class="hero-copy">
-      系统基于兴趣标签和历史行为构建用户画像，再融合相似用户偏好与热门资源分数，
-      输出 Top-N 推荐列表，并保留冷启动兜底能力。
+      通过内容相似度、协同过滤和热门资源融合生成推荐列表，页面直接解释每个分数来源，
+      更适合论文展示“为什么推荐它”。
     </p>
   </div>
-  <form class="user-switcher" method="get">
+  <form class="user-switcher" method="get" action="{{ url_for('recommendations') }}">
     <label for="user_id">推荐对象</label>
     <select id="user_id" name="user_id" onchange="this.form.submit()">
       {% for item in users %}
@@ -20,10 +20,10 @@
   </form>
 </section>
 
-<section class="panel-grid">
+<section class="dashboard-grid">
   <article class="panel">
     <div class="panel-head">
-      <h3>用户兴趣向量</h3>
+      <h3>兴趣标签权重</h3>
       <span>{{ user.name }}</span>
     </div>
     <div class="tag-cloud">
@@ -39,7 +39,7 @@
   <article class="panel wide">
     <div class="panel-head">
       <h3>Top-N 推荐列表</h3>
-      <span>评分公式 = 0.5 内容 + 0.35 协同 + 0.15 热门</span>
+      <span>0.5 内容 + 0.35 协同 + 0.15 热门</span>
     </div>
     <table class="data-table">
       <thead>
@@ -51,7 +51,7 @@
           <th>协同</th>
           <th>热门</th>
           <th>总分</th>
-          <th>行为采集</th>
+          <th>行为</th>
         </tr>
       </thead>
       <tbody>
@@ -73,7 +73,7 @@
                   <option value="favorite">收藏</option>
                   <option value="rate">高评分</option>
                 </select>
-                <button type="submit">记录</button>
+                <button type="submit">更新</button>
               </form>
             </td>
           </tr>

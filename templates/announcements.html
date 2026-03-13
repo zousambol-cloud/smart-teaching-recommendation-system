@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}通知中心{% endblock %}
+{% block content %}
+<section class="page-head">
+  <p class="eyebrow">Announcement Center</p>
+  <h2>通知中心</h2>
+  <p>课程提醒、资源更新和成绩发布统一进入消息流，方便截图展示平台运营能力。</p>
+</section>
+<section class="announcement-stack">
+  {% for item in notifications %}
+    <article class="announcement-card">
+      <div class="announcement-topline">
+        <span>{{ item.category }}</span>
+        <span>{{ item.priority }}优先级</span>
+        <span>{{ item.created_at }}</span>
+      </div>
+      <h3>{{ item.title }}</h3>
+      <p>{{ item.content }}</p>
+    </article>
+  {% endfor %}
+</section>
+{% endblock %}

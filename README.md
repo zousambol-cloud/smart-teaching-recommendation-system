@@ -33,7 +33,11 @@ total_score = 0.5 * content_score + 0.35 * collaborative_score + 0.15 * hot_scor
 
 ## 页面说明
 
-- `/`：系统总览、课程、作业、通知、学习画像与推荐预览
-- `/resources`：资源共享与检索
+- `/`：系统总览与模块入口
+- `/courses`：课程中心
+- `/assignments`：作业中心
+- `/resources`：资源中心
+- `/announcements`：通知中心
+- `/analytics`：学习分析
 - `/recommendations`：推荐解释页，可模拟浏览、收藏、评分行为
-- `/reset`：重置演示数据
+- `/refresh`：刷新平台内容

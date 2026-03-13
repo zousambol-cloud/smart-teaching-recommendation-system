@@ -9,16 +9,20 @@
   <body>
     <div class="page-shell">
       <aside class="sidebar">
-        <div class="brand">
-          <p class="eyebrow">Smart Education</p>
+        <a class="brand" href="{{ url_for('index') }}">
+          <p class="eyebrow">Insight Campus</p>
           <h1>智慧教学推荐系统</h1>
-          <p class="subtitle">课程管理、资源共享、学习分析与混合推荐一体化演示平台。</p>
-        </div>
+          <p class="subtitle">课程运营、资源协同与个性化推荐的统一入口。</p>
+        </a>
         <nav class="nav">
           <a href="{{ url_for('index') }}">系统总览</a>
-          <a href="{{ url_for('resources') }}">资源共享</a>
+          <a href="{{ url_for('courses') }}">课程中心</a>
+          <a href="{{ url_for('assignments') }}">作业中心</a>
+          <a href="{{ url_for('resources') }}">资源中心</a>
+          <a href="{{ url_for('announcements') }}">通知中心</a>
+          <a href="{{ url_for('analytics') }}">学习分析</a>
           <a href="{{ url_for('recommendations') }}">个性化推荐</a>
-          <a href="{{ url_for('reset') }}">重置演示数据</a>
+          <a href="{{ url_for('refresh') }}">刷新平台内容</a>
         </nav>
       </aside>
       <main class="content">

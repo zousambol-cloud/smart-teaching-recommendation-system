@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}课程中心{% endblock %}
+{% block content %}
+<section class="page-head">
+  <p class="eyebrow">Course Center</p>
+  <h2>课程中心</h2>
+  <p>聚合课程进度、师资信息与学习标签，强调课程运营视图而不是列表堆叠。</p>
+</section>
+<section class="resource-grid">
+  {% for course in courses %}
+    <article class="resource-card">
+      <p class="meta">{{ course.category }} · {{ course.teacher }}</p>
+      <h3>{{ course.title }}</h3>
+      <p>{{ course.description }}</p>
+      <div class="stat-pair">
+        <span>进度 {{ course.progress }}%</span>
+        <span>学生 {{ course.students }}</span>
+      </div>
+      <div class="progress-bar"><span style="width: {{ course.progress }}%"></span></div>
+      <div class="tag-row">
+        {% for tag in course.tags|split_tags %}
+          <span>{{ tag }}</span>
+        {% endfor %}
+      </div>
+    </article>
+  {% endfor %}
+</section>
+{% endblock %}
