@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% block title %}通知中心{% endblock %}
 {% block content %}
-<section class="page-head">
+<section class="page-header">
   <p class="eyebrow">Announcement Center</p>
   <h2>通知中心</h2>
-  <p>课程提醒、资源更新和成绩发布统一进入消息流，方便截图展示平台运营能力。</p>
+  <p>消息流按照优先级、发布时间和通知类型展示，更像平台内真实通知页。</p>
 </section>
-<section class="announcement-stack">
+
+<section class="announcement-feed">
   {% for item in notifications %}
-    <article class="announcement-card">
-      <div class="announcement-topline">
+    <article class="surface-card feed-card">
+      <div class="announcement-line">
         <span>{{ item.category }}</span>
         <span>{{ item.priority }}优先级</span>
         <span>{{ item.created_at }}</span>

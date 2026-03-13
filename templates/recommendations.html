@@ -1,16 +1,13 @@
 {% extends "base.html" %}
 {% block title %}个性化推荐{% endblock %}
 {% block content %}
-<section class="hero">
-  <div>
+<section class="hero-banner">
+  <div class="hero-copy">
     <p class="eyebrow">Hybrid Recommendation</p>
     <h2>个性化推荐</h2>
-    <p class="hero-copy">
-      通过内容相似度、协同过滤和热门资源融合生成推荐列表，页面直接解释每个分数来源，
-      更适合论文展示“为什么推荐它”。
-    </p>
+    <p>内容相似度、协同过滤和热门资源共同形成推荐分数，页面会直接说明每一项来源。</p>
   </div>
-  <form class="user-switcher" method="get" action="{{ url_for('recommendations') }}">
+  <form class="surface-card compact-card" method="get" action="{{ url_for('recommendations') }}">
     <label for="user_id">推荐对象</label>
     <select id="user_id" name="user_id" onchange="this.form.submit()">
       {% for item in users %}
@@ -20,15 +17,18 @@
   </form>
 </section>
 
-<section class="dashboard-grid">
-  <article class="panel">
-    <div class="panel-head">
-      <h3>兴趣标签权重</h3>
-      <span>{{ user.name }}</span>
+<section class="content-grid">
+  <article class="surface-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Interest Weight</p>
+        <h3>兴趣标签权重</h3>
+      </div>
+      <span class="quiet-text">{{ user.name }}</span>
     </div>
-    <div class="tag-cloud">
+    <div class="pill-cloud">
       {% for tag, score in interest_vector %}
-        <div class="tag-pill">
+        <div class="data-pill">
           <strong>{{ tag }}</strong>
           <span>{{ '%.1f'|format(score) }}</span>
         </div>
@@ -36,10 +36,13 @@
     </div>
   </article>
 
-  <article class="panel wide">
-    <div class="panel-head">
-      <h3>Top-N 推荐列表</h3>
-      <span>0.5 内容 + 0.35 协同 + 0.15 热门</span>
+  <article class="surface-card wide-card">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Score Breakdown</p>
+        <h3>Top-N 推荐列表</h3>
+      </div>
+      <span class="quiet-text">0.5 内容 + 0.35 协同 + 0.15 热门</span>
     </div>
     <table class="data-table">
       <thead>
