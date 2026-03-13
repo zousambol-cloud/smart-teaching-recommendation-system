@@ -656,6 +656,43 @@ def admin_dashboard_data(db: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
+def admin_management_data(db: sqlite3.Connection) -> dict[str, Any]:
+    users = db.execute("SELECT * FROM users ORDER BY role, id").fetchall()
+    courses = db.execute(
+        """
+        SELECT courses.*, users.name AS teacher_name
+        FROM courses
+        JOIN users ON users.id = courses.teacher_id
+        ORDER BY courses.id
+        """
+    ).fetchall()
+    resources = db.execute(
+        """
+        SELECT resources.*, courses.title AS course_title
+        FROM resources
+        JOIN courses ON courses.id = resources.course_id
+        ORDER BY resources.id
+        """
+    ).fetchall()
+    enrollments = db.execute(
+        """
+        SELECT enrollments.id, students.name AS student_name, courses.title AS course_title
+        FROM enrollments
+        JOIN users AS students ON students.id = enrollments.user_id
+        JOIN courses ON courses.id = enrollments.course_id
+        ORDER BY enrollments.id
+        """
+    ).fetchall()
+    return {
+        "users": users,
+        "courses": courses,
+        "resources": resources,
+        "enrollments": enrollments,
+        "teachers": [user for user in users if user["role"] == "teacher"],
+        "students": [user for user in users if user["role"] == "student"],
+    }
+
+
 @app.before_request
 def ensure_database() -> None:
     if not DATABASE_PATH.exists():
@@ -702,7 +739,195 @@ def teacher_portal() -> str:
 @app.route("/admin")
 def admin_portal() -> str:
     require_roles("admin")
-    return render_template("admin.html", data=admin_dashboard_data(get_db()))
+    db = get_db()
+    return render_template("admin.html", data=admin_dashboard_data(db), manage=admin_management_data(db))
+
+
+@app.route("/admin/users/create", methods=["POST"])
+def admin_create_user() -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute(
+        "INSERT INTO users (name, role, major, interests, bio) VALUES (?, ?, ?, ?, ?)",
+        (
+            request.form["name"].strip(),
+            request.form["role"].strip(),
+            request.form["major"].strip(),
+            request.form["interests"].strip(),
+            request.form["bio"].strip(),
+        ),
+    )
+    db.commit()
+    flash("用户已新增。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/users/<int:user_id>/update", methods=["POST"])
+def admin_update_user(user_id: int) -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute(
+        "UPDATE users SET name = ?, role = ?, major = ?, interests = ?, bio = ? WHERE id = ?",
+        (
+            request.form["name"].strip(),
+            request.form["role"].strip(),
+            request.form["major"].strip(),
+            request.form["interests"].strip(),
+            request.form["bio"].strip(),
+            user_id,
+        ),
+    )
+    db.commit()
+    flash("用户已更新。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+def admin_delete_user(user_id: int) -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute("DELETE FROM resource_ratings WHERE user_id = ?", (user_id,))
+    db.execute("DELETE FROM activity_logs WHERE user_id = ?", (user_id,))
+    db.execute("DELETE FROM submissions WHERE student_id = ? OR graded_by = ?", (user_id, user_id))
+    db.execute("DELETE FROM enrollments WHERE user_id = ?", (user_id,))
+    db.execute("DELETE FROM notifications WHERE author_id = ?", (user_id,))
+    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    db.commit()
+    flash("用户已删除。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/courses/create", methods=["POST"])
+def admin_create_course() -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute(
+        "INSERT INTO courses (title, category, teacher_id, tags, description) VALUES (?, ?, ?, ?, ?)",
+        (
+            request.form["title"].strip(),
+            request.form["category"].strip(),
+            int(request.form["teacher_id"]),
+            request.form["tags"].strip(),
+            request.form["description"].strip(),
+        ),
+    )
+    db.commit()
+    flash("课程已新增。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/courses/<int:course_id>/update", methods=["POST"])
+def admin_update_course(course_id: int) -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute(
+        "UPDATE courses SET title = ?, category = ?, teacher_id = ?, tags = ?, description = ? WHERE id = ?",
+        (
+            request.form["title"].strip(),
+            request.form["category"].strip(),
+            int(request.form["teacher_id"]),
+            request.form["tags"].strip(),
+            request.form["description"].strip(),
+            course_id,
+        ),
+    )
+    db.commit()
+    flash("课程已更新。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/courses/<int:course_id>/delete", methods=["POST"])
+def admin_delete_course(course_id: int) -> Any:
+    require_roles("admin")
+    db = get_db()
+    assignment_ids = [row["id"] for row in db.execute("SELECT id FROM assignments WHERE course_id = ?", (course_id,)).fetchall()]
+    if assignment_ids:
+        placeholders = ",".join("?" for _ in assignment_ids)
+        db.execute(f"DELETE FROM submissions WHERE assignment_id IN ({placeholders})", tuple(assignment_ids))
+    db.execute("DELETE FROM activity_logs WHERE course_id = ?", (course_id,))
+    db.execute("DELETE FROM resources WHERE course_id = ?", (course_id,))
+    db.execute("DELETE FROM assignments WHERE course_id = ?", (course_id,))
+    db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
+    db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+    db.commit()
+    flash("课程已删除。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/resources/create", methods=["POST"])
+def admin_create_resource() -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute(
+        "INSERT INTO resources (course_id, title, resource_type, tags, url, summary) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            int(request.form["course_id"]),
+            request.form["title"].strip(),
+            request.form["resource_type"].strip(),
+            request.form["tags"].strip(),
+            request.form["url"].strip(),
+            request.form["summary"].strip(),
+        ),
+    )
+    db.commit()
+    flash("资源已新增。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/resources/<int:resource_id>/update", methods=["POST"])
+def admin_update_resource(resource_id: int) -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute(
+        "UPDATE resources SET course_id = ?, title = ?, resource_type = ?, tags = ?, url = ?, summary = ? WHERE id = ?",
+        (
+            int(request.form["course_id"]),
+            request.form["title"].strip(),
+            request.form["resource_type"].strip(),
+            request.form["tags"].strip(),
+            request.form["url"].strip(),
+            request.form["summary"].strip(),
+            resource_id,
+        ),
+    )
+    db.commit()
+    flash("资源已更新。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/resources/<int:resource_id>/delete", methods=["POST"])
+def admin_delete_resource(resource_id: int) -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute("DELETE FROM resource_ratings WHERE resource_id = ?", (resource_id,))
+    db.execute("DELETE FROM activity_logs WHERE resource_id = ?", (resource_id,))
+    db.execute("DELETE FROM resources WHERE id = ?", (resource_id,))
+    db.commit()
+    flash("资源已删除。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/enrollments/create", methods=["POST"])
+def admin_create_enrollment() -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute(
+        "INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)",
+        (int(request.form["student_id"]), int(request.form["course_id"])),
+    )
+    db.commit()
+    flash("选课关系已新增。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
+
+
+@app.route("/admin/enrollments/<int:enrollment_id>/delete", methods=["POST"])
+def admin_delete_enrollment(enrollment_id: int) -> Any:
+    require_roles("admin")
+    db = get_db()
+    db.execute("DELETE FROM enrollments WHERE id = ?", (enrollment_id,))
+    db.commit()
+    flash("选课关系已删除。")
+    return redirect(url_for("admin_portal", user_id=current_user_id()))
 
 
 @app.route("/courses")
