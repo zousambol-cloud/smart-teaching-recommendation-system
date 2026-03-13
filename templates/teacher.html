@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}教师端{% endblock %}
+{% block content %}
+<section class="page-head">
+  <p class="eyebrow">Teacher Portal</p>
+  <h2>教师端</h2>
+  <p>教师端聚焦课程提交率、待批改文件和通知发布能力。</p>
+</section>
+<section class="panel-grid">
+  <article class="panel">
+    <h3>授课课程</h3>
+    <div class="card-list">
+      {% for course in data.courses %}
+        <div class="list-card">
+          <h4>{{ course.title }}</h4>
+          <p>课程提交率：{{ course.submission_rate }}%</p>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="panel">
+    <h3>最新提交</h3>
+    <div class="card-list">
+      {% for item in data.submissions %}
+        <div class="list-card">
+          <h4>{{ item.student_name }} · {{ item.assignment_title }}</h4>
+          <p>{{ item.course_title }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endblock %}

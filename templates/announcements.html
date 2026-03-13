@@ -1,21 +1,34 @@
 {% extends "base.html" %}
 {% block title %}通知中心{% endblock %}
 {% block content %}
-<section class="page-header">
-  <p class="eyebrow">Announcement Center</p>
+<section class="page-head">
+  <p class="eyebrow">Announcements</p>
   <h2>通知中心</h2>
-  <p>消息流按照优先级、发布时间和通知类型展示，更像平台内真实通知页。</p>
+  <p>通知由教师端和管理端发布，学生端只读。</p>
 </section>
-
-<section class="announcement-feed">
+{% if current_user.role in ['teacher', 'admin'] %}
+  <article class="panel">
+    <h3>发布通知</h3>
+    <form method="post" action="{{ url_for('create_announcement') }}">
+      <input type="hidden" name="user_id" value="{{ user_id }}">
+      <input type="text" name="title" placeholder="通知标题" required>
+      <input type="text" name="category" placeholder="分类，如作业/资源/实验" required>
+      <select name="priority">
+        <option value="高">高</option>
+        <option value="中">中</option>
+        <option value="低">低</option>
+      </select>
+      <textarea name="content" rows="4" placeholder="通知内容" required></textarea>
+      <button type="submit">发布通知</button>
+    </form>
+  </article>
+{% endif %}
+<section class="card-grid">
   {% for item in notifications %}
-    <article class="surface-card feed-card">
-      <div class="announcement-line">
-        <span>{{ item.category }}</span>
-        <span>{{ item.priority }}优先级</span>
-        <span>{{ item.created_at }}</span>
-      </div>
+    <article class="list-card">
       <h3>{{ item.title }}</h3>
+      <p>{{ item.category }} · {{ item.priority }}优先级 · {{ item.author_name }}</p>
+      <p>{{ item.created_at }}</p>
       <p>{{ item.content }}</p>
     </article>
   {% endfor %}

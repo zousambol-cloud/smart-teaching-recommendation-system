@@ -1,39 +1,43 @@
 {% extends "base.html" %}
 {% block title %}资源中心{% endblock %}
 {% block content %}
-<section class="hero-banner compact">
-  <div class="hero-copy">
-    <p class="eyebrow">Resource Center</p>
-    <h2>资源中心</h2>
-    <p>课件、视频和文档按课程归属聚合，强调检索效率和资源价值感。</p>
-  </div>
-  <form class="surface-card compact-card" method="get">
-    <label for="q">检索资源</label>
-    <input id="q" type="text" name="q" value="{{ query }}" placeholder="输入课程、标题或标签">
-    <button type="submit">开始搜索</button>
-  </form>
+<section class="page-head">
+  <p class="eyebrow">Resources</p>
+  <h2>资源中心</h2>
+  <p>资源可直接跳转到真实学习网页，也可下载平台生成的学习导读文件，还支持评分。</p>
 </section>
-
-<section class="card-grid three-col">
+<form class="search-row" method="get">
+  <input type="hidden" name="user_id" value="{{ user_id }}">
+  <input type="text" name="q" value="{{ query }}" placeholder="搜索资源标题、课程、标签">
+  <button type="submit">搜索</button>
+</form>
+<section class="card-grid">
   {% for item in resources %}
-    <article class="surface-card catalog-card">
-      <div class="catalog-head">
-        <span>{{ item.course_title }}</span>
-        <strong>{{ item.rating }}</strong>
-      </div>
+    <article class="panel">
       <h3>{{ item.title }}</h3>
-      <p>{{ item.resource_type }} · 下载 {{ item.downloads }}</p>
+      <p>{{ item.course_title }} · {{ item.resource_type }}</p>
+      <p>{{ item.summary }}</p>
+      <p>浏览：{{ item.views }} · 下载：{{ item.downloads }} · 平均评分：{{ item.avg_rating }}（{{ item.rating_count }}人）</p>
       <div class="tag-row">
         {% for tag in item.tags|split_tags %}
           <span>{{ tag }}</span>
         {% endfor %}
       </div>
-      <a class="primary-action inline-action" href="{{ item.url }}" target="_blank" rel="noreferrer">打开资源</a>
-    </article>
-  {% else %}
-    <article class="surface-card">
-      <h3>没有匹配内容</h3>
-      <p>换一个课程名、资源类型或标签再试一次。</p>
+      <div class="action-row">
+        <a href="{{ url_for('open_resource', resource_id=item.id, user_id=user_id) }}">打开资源</a>
+        <a href="{{ url_for('download_resource', resource_id=item.id, user_id=user_id) }}">下载导读</a>
+      </div>
+      <form method="post" action="{{ url_for('rate_resource', resource_id=item.id) }}">
+        <input type="hidden" name="user_id" value="{{ user_id }}">
+        <label>我的评分</label>
+        <select name="rating">
+          {% for rating in range(5, 0, -1) %}
+            <option value="{{ rating }}" {% if item.my_rating == rating %}selected{% endif %}>{{ rating }} 星</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="comment" placeholder="一句评价，可留空">
+        <button type="submit">提交评分</button>
+      </form>
     </article>
   {% endfor %}
 </section>

@@ -7,36 +7,50 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="app-sidebar">
-        <a class="brand-panel" href="{{ url_for('index') }}">
-          <p class="eyebrow">Campus Intelligence</p>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand-card">
+          <p class="eyebrow">Teaching Platform</p>
           <h1>智慧教学推荐系统</h1>
-          <p>把课程进度、资源分发、作业反馈和推荐解释串成统一产品体验。</p>
-        </a>
-
-        <nav class="sidebar-nav">
-          <a class="{% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">系统总览</a>
-          <a class="{% if request.endpoint == 'courses' %}active{% endif %}" href="{{ url_for('courses') }}">课程中心</a>
-          <a class="{% if request.endpoint == 'assignments' %}active{% endif %}" href="{{ url_for('assignments') }}">作业中心</a>
-          <a class="{% if request.endpoint == 'resources' %}active{% endif %}" href="{{ url_for('resources') }}">资源中心</a>
-          <a class="{% if request.endpoint == 'announcements' %}active{% endif %}" href="{{ url_for('announcements') }}">通知中心</a>
-          <a class="{% if request.endpoint == 'analytics' %}active{% endif %}" href="{{ url_for('analytics') }}">学习分析</a>
-          <a class="{% if request.endpoint == 'recommendations' %}active{% endif %}" href="{{ url_for('recommendations') }}">个性化推荐</a>
-        </nav>
-
-        <div class="sidebar-card">
-          <span>系统操作</span>
-          <a class="mini-link" href="{{ url_for('refresh') }}">刷新平台内容</a>
+          <p>一个有角色、有数据来源、有提交流程和推荐反馈闭环的最小教学平台。</p>
         </div>
+
+        <form class="switcher" method="get" action="{{ request.path }}">
+          <label for="user_id">当前用户</label>
+          <select id="user_id" name="user_id" onchange="this.form.submit()">
+            {% for item in users %}
+              <option value="{{ item.id }}" {% if item.id == user_id %}selected{% endif %}>{{ item.name }} · {{ item.role }}</option>
+            {% endfor %}
+          </select>
+        </form>
+
+        <nav class="nav">
+          <a href="{{ url_for('index', user_id=user_id) }}">系统总览</a>
+          {% if current_user.role == 'student' %}
+            <a href="{{ url_for('student_portal', user_id=user_id) }}">学生端</a>
+            <a href="{{ url_for('analytics', user_id=user_id) }}">学习分析</a>
+            <a href="{{ url_for('recommendations', user_id=user_id) }}">个性化推荐</a>
+          {% endif %}
+          {% if current_user.role == 'teacher' %}
+            <a href="{{ url_for('teacher_portal', user_id=user_id) }}">教师端</a>
+          {% endif %}
+          {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('admin_portal', user_id=user_id) }}">管理端</a>
+          {% endif %}
+          <a href="{{ url_for('courses', user_id=user_id) }}">课程中心</a>
+          <a href="{{ url_for('assignments', user_id=user_id) }}">作业中心</a>
+          <a href="{{ url_for('resources', user_id=user_id) }}">资源中心</a>
+          <a href="{{ url_for('announcements', user_id=user_id) }}">通知中心</a>
+          <a href="{{ url_for('refresh', user_id=user_id) }}">刷新平台内容</a>
+        </nav>
       </aside>
 
-      <main class="app-main">
+      <main class="content">
         {% with messages = get_flashed_messages() %}
           {% if messages %}
             <div class="flash-stack">
               {% for message in messages %}
-                <div class="flash-message">{{ message }}</div>
+                <div class="flash">{{ message }}</div>
               {% endfor %}
             </div>
           {% endif %}

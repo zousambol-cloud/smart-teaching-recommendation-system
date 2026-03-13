@@ -1,165 +1,133 @@
 {% extends "base.html" %}
 {% block title %}系统总览{% endblock %}
 {% block content %}
-<section class="hero-banner">
-  <div class="hero-copy">
-    <p class="eyebrow">Teaching Command</p>
-    <h2>更像产品首页，而不是一页静态答辩海报</h2>
-    <p>
-      首页直接承担模块导航、运营看板和用户画像入口三种职责。
-      所有核心卡片都可点击，用户能顺着首页进入课程、作业、资源、通知、学习分析和推荐解释。
-    </p>
-    <div class="hero-actions">
-      <a class="primary-action" href="{{ url_for('recommendations', user_id=selected_user_id) }}">查看推荐中心</a>
-      <a class="secondary-action" href="{{ url_for('analytics', user_id=selected_user_id) }}">进入学习分析</a>
-    </div>
+<section class="hero">
+  <div>
+    <p class="eyebrow">Overview</p>
+    <h2>系统总览</h2>
+    <p>当前页面显示的每个指标都来自数据库实时计算，不再是写死的静态文本。</p>
   </div>
-
   <div class="hero-user">
-    <form class="surface-card compact-card" method="get" action="{{ url_for('index') }}">
-      <label for="user_id">当前关注用户</label>
-      <select id="user_id" name="user_id" onchange="this.form.submit()">
-        {% for user in users %}
-          <option value="{{ user.id }}" {% if user.id == selected_user_id %}selected{% endif %}>{{ user.name }} · {{ user.role }}</option>
-        {% endfor %}
-      </select>
-    </form>
-    <div class="surface-card profile-card">
-      <span class="status-chip">当前画像</span>
-      <h3>{{ metrics.user.name }}</h3>
-      <p class="profile-meta">{{ metrics.user.major }}</p>
-      <p>{{ metrics.user.bio }}</p>
-    </div>
+    <span class="badge">{{ current_user.role }}</span>
+    <h3>{{ metrics.user.name }}</h3>
+    <p>{{ metrics.user.major }}</p>
+    <p>{{ metrics.user.bio }}</p>
   </div>
 </section>
 
-<section class="metric-strip">
-  <a class="metric-card clickable" href="{{ url_for('courses') }}">
-    <span>课程总量</span>
+<section class="metric-grid">
+  <article class="metric-card">
+    <span>课程数</span>
     <strong>{{ metrics.course_count }}</strong>
-    <p>查看课程进度与课程规模</p>
-  </a>
-  <a class="metric-card clickable" href="{{ url_for('assignments') }}">
-    <span>待处理作业</span>
-    <strong>{{ metrics.pending_assignments }}</strong>
-    <p>进入作业中心继续处理</p>
-  </a>
-  <a class="metric-card clickable" href="{{ url_for('resources') }}">
-    <span>资源总量</span>
+  </article>
+  <article class="metric-card">
+    <span>资源数</span>
     <strong>{{ metrics.resource_count }}</strong>
-    <p>课件、视频、文档统一浏览</p>
-  </a>
-  <a class="metric-card clickable" href="{{ url_for('analytics', user_id=selected_user_id) }}">
-    <span>平均成绩</span>
+  </article>
+  <article class="metric-card">
+    <span>{% if current_user.role == 'student' %}待提交作业{% else %}待批改作业{% endif %}</span>
+    <strong>{{ metrics.pending_assignments }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>全站资源平均评分</span>
+    <strong>{{ metrics.resource_average_rating }}</strong>
+  </article>
+  <article class="metric-card">
+    <span>已批改平均分</span>
     <strong>{{ metrics.average_score }}</strong>
-    <p>跳转到学习分析查看画像</p>
-  </a>
+  </article>
+  <article class="metric-card">
+    <span>通知数</span>
+    <strong>{{ metrics.announcement_count }}</strong>
+  </article>
 </section>
 
-<section class="module-mosaic">
-  {% for card in module_cards %}
-    <a class="module-tile module-{{ card.tone }}" href="{{ url_for(card.endpoint, user_id=selected_user_id) if card.endpoint in ['analytics', 'recommendations'] else url_for(card.endpoint) }}">
-      <div>
-        <p class="tile-kicker">{{ card.value }}</p>
-        <h3>{{ card.title }}</h3>
-        <p>{{ card.subtitle }}</p>
+<section class="panel-grid">
+  {% if current_user.role == 'student' %}
+    <article class="panel">
+      <div class="panel-head">
+        <h3>学生端快捷入口</h3>
+        <a href="{{ url_for('student_portal', user_id=user_id) }}">进入学生端</a>
       </div>
-      <span class="tile-arrow">进入模块</span>
-    </a>
-  {% endfor %}
-</section>
-
-<section class="content-grid">
-  <article class="surface-card feature-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Course Spotlight</p>
-        <h3>重点课程</h3>
-      </div>
-      <a href="{{ url_for('courses') }}">查看全部</a>
-    </div>
-    <div class="feature-list">
-      {% for course in spotlight_courses %}
-        <div class="list-card">
-          <div class="list-card-top">
-            <div>
-              <h4>{{ course.title }}</h4>
-              <p>{{ course.category }} · {{ course.teacher }}</p>
-            </div>
-            <strong>{{ course.progress }}%</strong>
+      <div class="card-list">
+        {% for course in student_data.courses %}
+          <div class="list-card">
+            <h4>{{ course.title }}</h4>
+            <p>课程进度按已浏览资源占比计算：{{ course.progress }}%</p>
+            <p>课程作业提交率：{{ course.submission_rate }}%</p>
           </div>
-          <div class="progress-track"><span style="width: {{ course.progress }}%"></span></div>
-          <div class="tag-row">
-            {% for tag in course.tags|split_tags %}
-              <span>{{ tag }}</span>
-            {% endfor %}
-          </div>
-        </div>
-      {% endfor %}
-    </div>
-  </article>
-
-  <article class="surface-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Interest Map</p>
-        <h3>兴趣标签</h3>
+        {% endfor %}
       </div>
-      <a href="{{ url_for('analytics', user_id=selected_user_id) }}">查看分析</a>
-    </div>
-    <div class="pill-cloud">
-      {% for tag, score in metrics.top_tags %}
-        <div class="data-pill">
-          <strong>{{ tag }}</strong>
-          <span>{{ '%.1f'|format(score) }}</span>
-        </div>
-      {% endfor %}
-    </div>
-  </article>
-
-  <article class="surface-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Recommendation Feed</p>
-        <h3>推荐结果</h3>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h3>推荐预览</h3>
+        <a href="{{ url_for('recommendations', user_id=user_id) }}">查看完整推荐</a>
       </div>
-      <a href="{{ url_for('recommendations', user_id=selected_user_id) }}">查看解释</a>
-    </div>
-    <div class="feature-list">
-      {% for item in recommendations %}
-        <a class="list-card clickable-list" href="{{ url_for('recommendations', user_id=selected_user_id) }}">
-          <div class="list-card-top">
-            <div>
-              <h4>{{ item.title }}</h4>
-              <p>{{ item.course_title }} · {{ item.resource_type }}</p>
-            </div>
-            <strong>{{ item.score }}</strong>
+      <div class="card-list">
+        {% for item in student_data.recommendations %}
+          <div class="list-card">
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.course_title }} · 总分 {{ item.score }}</p>
           </div>
-        </a>
-      {% endfor %}
-    </div>
-  </article>
-
-  <article class="surface-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Announcement Feed</p>
+        {% endfor %}
+      </div>
+    </article>
+  {% elif current_user.role == 'teacher' %}
+    <article class="panel">
+      <div class="panel-head">
+        <h3>教师端快捷入口</h3>
+        <a href="{{ url_for('teacher_portal', user_id=user_id) }}">进入教师端</a>
+      </div>
+      <div class="card-list">
+        {% for course in teacher_data.courses %}
+          <div class="list-card">
+            <h4>{{ course.title }}</h4>
+            <p>课程提交率：{{ course.submission_rate }}%</p>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h3>最近提交</h3>
+        <a href="{{ url_for('assignments', user_id=user_id) }}">去批改</a>
+      </div>
+      <div class="card-list">
+        {% for item in teacher_data.submissions %}
+          <div class="list-card">
+            <h4>{{ item.student_name }} · {{ item.assignment_title }}</h4>
+            <p>{{ item.course_title }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  {% else %}
+    <article class="panel">
+      <div class="panel-head">
+        <h3>管理端快捷入口</h3>
+        <a href="{{ url_for('admin_portal', user_id=user_id) }}">进入管理端</a>
+      </div>
+      <div class="card-list">
+        <div class="list-card"><h4>课程总数</h4><p>{{ admin_data.site_courses }}</p></div>
+        <div class="list-card"><h4>用户总数</h4><p>{{ admin_data.site_users }}</p></div>
+        <div class="list-card"><h4>提交总数</h4><p>{{ admin_data.site_submissions }}</p></div>
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
         <h3>最新通知</h3>
+        <a href="{{ url_for('announcements', user_id=user_id) }}">查看通知中心</a>
       </div>
-      <a href="{{ url_for('announcements') }}">查看全部</a>
-    </div>
-    <div class="feature-list">
-      {% for item in notifications %}
-        <div class="list-card">
-          <div class="announcement-line">
-            <span>{{ item.category }}</span>
-            <span>{{ item.priority }}优先级</span>
+      <div class="card-list">
+        {% for item in admin_data.notifications %}
+          <div class="list-card">
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.category }} · {{ item.author_name }}</p>
           </div>
-          <h4>{{ item.title }}</h4>
-          <p>{{ item.content }}</p>
-        </div>
-      {% endfor %}
-    </div>
-  </article>
+        {% endfor %}
+      </div>
+    </article>
+  {% endif %}
 </section>
 {% endblock %}

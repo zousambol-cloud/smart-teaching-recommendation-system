@@ -1,38 +1,73 @@
 {% extends "base.html" %}
 {% block title %}作业中心{% endblock %}
 {% block content %}
-<section class="page-header">
-  <p class="eyebrow">Assignment Center</p>
+<section class="page-head">
+  <p class="eyebrow">Assignments</p>
   <h2>作业中心</h2>
-  <p>以教学过程管理视角展示作业节奏、提交率、评分结果和教师反馈。</p>
+  <p>学生可上传作业文件，教师和管理员可下载并批改，状态和数量都会同步变化。</p>
 </section>
 
-<article class="surface-card table-card">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>课程</th>
-        <th>作业名称</th>
-        <th>截止日期</th>
-        <th>状态</th>
-        <th>提交率</th>
-        <th>分数</th>
-        <th>反馈</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in assignments %}
+{% if student_assignments %}
+  <section class="card-grid">
+    {% for item in student_assignments %}
+      <article class="panel">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.course_title }} · 截止 {{ item.due_date }}</p>
+        <p>{{ item.description }}</p>
+        <p>状态：{{ item.status }}</p>
+        {% if item.filename %}
+          <p>已提交文件：{{ item.filename }}</p>
+        {% endif %}
+        {% if item.score is not none %}
+          <p>分数：{{ item.score }}</p>
+          <p>反馈：{{ item.feedback }}</p>
+        {% endif %}
+        {% if item.status != '已批改' %}
+          <form method="post" action="{{ url_for('submit_assignment') }}" enctype="multipart/form-data">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <input type="hidden" name="assignment_id" value="{{ item.id }}">
+            <input type="file" name="submission_file" required>
+            <button type="submit">上传作业</button>
+          </form>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </section>
+{% else %}
+  <article class="panel">
+    <table class="data-table">
+      <thead>
         <tr>
-          <td>{{ item.course_title }}</td>
-          <td>{{ item.title }}</td>
-          <td>{{ item.due_date }}</td>
-          <td><span class="table-badge">{{ item.status }}</span></td>
-          <td>{{ item.submission_rate }}%</td>
-          <td>{{ item.score if item.score else '-' }}</td>
-          <td>{{ item.feedback }}</td>
+          <th>学生</th>
+          <th>课程</th>
+          <th>作业</th>
+          <th>提交时间</th>
+          <th>文件</th>
+          <th>状态</th>
+          <th>批改</th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</article>
+      </thead>
+      <tbody>
+        {% for item in review_rows %}
+          <tr>
+            <td>{{ item.student_name }}</td>
+            <td>{{ item.course_title }}</td>
+            <td>{{ item.assignment_title }}</td>
+            <td>{{ item.submitted_at }}</td>
+            <td><a href="{{ url_for('download_submission', submission_id=item.id, user_id=user_id) }}">下载 {{ item.filename }}</a></td>
+            <td>{{ '已批改' if item.score is not none else '待批改' }}</td>
+            <td>
+              <form method="post" action="{{ url_for('grade_submission', submission_id=item.id) }}" class="inline-form">
+                <input type="hidden" name="user_id" value="{{ user_id }}">
+                <input type="number" name="score" min="0" max="{{ item.max_score }}" value="{{ item.score or '' }}" required>
+                <input type="text" name="feedback" value="{{ item.feedback or '' }}" placeholder="批改反馈" required>
+                <button type="submit">提交批改</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+{% endif %}
 {% endblock %}

@@ -1,73 +1,32 @@
 {% extends "base.html" %}
 {% block title %}学习分析{% endblock %}
 {% block content %}
-<section class="hero-banner">
-  <div class="hero-copy">
-    <p class="eyebrow">Learning Analytics</p>
-    <h2>学习分析</h2>
-    <p>围绕课程进度、作业完成度、资源反馈和行为日志构成学习画像。</p>
-  </div>
-  <form class="surface-card compact-card" method="get" action="{{ url_for('analytics') }}">
-    <label for="user_id">查看用户</label>
-    <select id="user_id" name="user_id" onchange="this.form.submit()">
-      {% for item in users %}
-        <option value="{{ item.id }}" {% if item.id == selected_user_id %}selected{% endif %}>{{ item.name }} · {{ item.role }}</option>
-      {% endfor %}
-    </select>
-  </form>
+<section class="page-head">
+  <p class="eyebrow">Analytics</p>
+  <h2>学习分析</h2>
+  <p>课程进度来自资源浏览情况，作业提交率来自真实提交记录，资源平均评分来自全站评分表。</p>
 </section>
-
-<section class="metric-strip">
-  <article class="metric-card">
-    <span>课程平均进度</span>
-    <strong>{{ analytics.course_completion }}%</strong>
-  </article>
-  <article class="metric-card">
-    <span>作业平均提交率</span>
-    <strong>{{ analytics.assignment_submission }}%</strong>
-  </article>
-  <article class="metric-card">
-    <span>资源平均评分</span>
-    <strong>{{ analytics.resource_rating }}</strong>
-  </article>
-  <article class="metric-card">
-    <span>当前分析对象</span>
-    <strong>{{ user.name }}</strong>
-  </article>
+<section class="metric-grid">
+  <article class="metric-card"><span>平均课程进度</span><strong>{{ analytics.course_completion }}%</strong></article>
+  <article class="metric-card"><span>作业提交率</span><strong>{{ analytics.assignment_submission }}%</strong></article>
+  <article class="metric-card"><span>全站资源平均评分</span><strong>{{ analytics.resource_rating }}</strong></article>
 </section>
-
-<section class="content-grid">
-  <article class="surface-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Interest Vector</p>
-        <h3>兴趣向量</h3>
-      </div>
-    </div>
-    <div class="pill-cloud">
+<section class="panel-grid">
+  <article class="panel">
+    <h3>兴趣向量</h3>
+    <div class="tag-row">
       {% for tag, score in analytics.interest_vector %}
-        <div class="data-pill">
-          <strong>{{ tag }}</strong>
-          <span>{{ '%.1f'|format(score) }}</span>
-        </div>
+        <span>{{ tag }} {{ '%.1f'|format(score) }}</span>
       {% endfor %}
     </div>
   </article>
-
-  <article class="surface-card">
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Behavior Mix</p>
-        <h3>行为构成</h3>
-      </div>
-    </div>
-    <div class="feature-list">
-      {% for row in analytics.behavior_mix %}
+  <article class="panel">
+    <h3>行为构成</h3>
+    <div class="card-list">
+      {% for item in analytics.behavior_mix %}
         <div class="list-card">
-          <div class="list-card-top">
-            <h4>{{ row.action }}</h4>
-            <strong>{{ row.total }}</strong>
-          </div>
+          <h4>{{ item.action }}</h4>
+          <p>{{ item.total }}</p>
         </div>
       {% endfor %}
     </div>

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}学生端{% endblock %}
+{% block content %}
+<section class="page-head">
+  <p class="eyebrow">Student Portal</p>
+  <h2>学生端</h2>
+  <p>学生端展示个人课程进度、待提交作业和推荐资源。</p>
+</section>
+<section class="panel-grid">
+  <article class="panel">
+    <h3>课程进度</h3>
+    <div class="card-list">
+      {% for course in data.courses %}
+        <div class="list-card">
+          <h4>{{ course.title }}</h4>
+          <p>已浏览资源进度：{{ course.progress }}%</p>
+          <p>课程作业提交率：{{ course.submission_rate }}%</p>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="panel">
+    <h3>待处理作业</h3>
+    <div class="card-list">
+      {% for item in data.assignments %}
+        <div class="list-card">
+          <h4>{{ item.title }}</h4>
+          <p>{{ item.course_title }} · {{ item.status }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endblock %}

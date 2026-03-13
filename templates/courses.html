@@ -1,31 +1,23 @@
 {% extends "base.html" %}
 {% block title %}课程中心{% endblock %}
 {% block content %}
-<section class="page-header">
-  <p class="eyebrow">Course Center</p>
+<section class="page-head">
+  <p class="eyebrow">Courses</p>
   <h2>课程中心</h2>
-  <p>课程列表不只是信息堆叠，而是按运营状态呈现进度、教师、标签和学习规模。</p>
+  <p>学生看的是个人课程进度，教师和管理端看的是课程提交率与选课规模。</p>
 </section>
-
-<section class="card-grid three-col">
+<section class="card-grid">
   {% for course in courses %}
-    <article class="surface-card catalog-card">
-      <div class="catalog-head">
-        <span>{{ course.category }}</span>
-        <strong>{{ course.progress }}%</strong>
-      </div>
+    <article class="list-card">
       <h3>{{ course.title }}</h3>
+      <p>{{ course.category }} · {{ course.teacher_name }}</p>
       <p>{{ course.description }}</p>
-      <div class="catalog-metrics">
-        <span>教师 {{ course.teacher }}</span>
-        <span>学生 {{ course.students }}</span>
-      </div>
-      <div class="progress-track"><span style="width: {{ course.progress }}%"></span></div>
-      <div class="tag-row">
-        {% for tag in course.tags|split_tags %}
-          <span>{{ tag }}</span>
-        {% endfor %}
-      </div>
+      <p>学生数：{{ course.students }}</p>
+      {% if current_user.role == 'student' %}
+        <p>我的课程进度：{{ course.progress }}%</p>
+      {% else %}
+        <p>课程作业提交率：{{ course.submission_rate }}%</p>
+      {% endif %}
     </article>
   {% endfor %}
 </section>

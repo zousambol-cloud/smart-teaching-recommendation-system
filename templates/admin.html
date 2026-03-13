@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}管理端{% endblock %}
+{% block content %}
+<section class="page-head">
+  <p class="eyebrow">Admin Portal</p>
+  <h2>管理端</h2>
+  <p>管理端负责站点概览和通知运营。</p>
+</section>
+<section class="metric-grid">
+  <article class="metric-card"><span>课程总数</span><strong>{{ data.site_courses }}</strong></article>
+  <article class="metric-card"><span>用户总数</span><strong>{{ data.site_users }}</strong></article>
+  <article class="metric-card"><span>提交总数</span><strong>{{ data.site_submissions }}</strong></article>
+</section>
+<article class="panel">
+  <h3>最新通知</h3>
+  <div class="card-list">
+    {% for item in data.notifications %}
+      <div class="list-card">
+        <h4>{{ item.title }}</h4>
+        <p>{{ item.category }} · {{ item.author_name }}</p>
+      </div>
+    {% endfor %}
+  </div>
+</article>
+{% endblock %}
