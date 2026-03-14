@@ -4,7 +4,7 @@
 <section class="page-head">
   <p class="eyebrow">Recommendations</p>
   <h2>个性化推荐</h2>
-  <p>推荐结果来自兴趣标签、历史行为、协同偏好和资源热度。点击资源标题会打开独立弹窗，并立即写入一次浏览行为；关闭弹窗后，本页会自动刷新推荐结果和行为统计。</p>
+  <p>推荐结果来自兴趣标签、历史行为、协同偏好和资源热度。仅当你明确把资源收藏时，该资源才会从推荐列表中移除；单纯浏览、打开原始资源或评分，都不会自动删掉推荐项。</p>
 </section>
 
 <section class="panel-grid">
@@ -18,11 +18,11 @@
   </article>
   <article class="panel">
     <h3>行为构成</h3>
-    <div class="card-list" id="behavior-mix">
+    <div class="card-list">
       {% for item in behavior_mix %}
         <div class="list-card">
           <h4>{{ item.action }}</h4>
-          <p data-action-total="{{ item.action }}">{{ item.total }}</p>
+          <p>{{ item.total }}</p>
         </div>
       {% endfor %}
     </div>
@@ -47,17 +47,17 @@
       {% for item in items %}
         <tr>
           <td>
-            <button type="button" class="link-button" onclick="openRecommendationDialog({{ item.id }})">
+            <button type="button" class="link-button" onclick="document.getElementById('resource-dialog-{{ item.id }}').showModal()">
               {{ item.title }}
             </button>
-            <dialog id="resource-dialog-{{ item.id }}" class="resource-dialog" data-resource-id="{{ item.id }}">
+            <dialog id="resource-dialog-{{ item.id }}" class="resource-dialog">
               <article class="dialog-card">
                 <div class="panel-head">
                   <h3>{{ item.title }}</h3>
-                  <button type="button" class="ghost-button" onclick="closeRecommendationDialog({{ item.id }})">关闭</button>
+                  <button type="button" class="ghost-button" onclick="document.getElementById('resource-dialog-{{ item.id }}').close()">关闭</button>
                 </div>
                 <p>{{ item.course_title }} / {{ item.resource_type }}</p>
-                <p>这里展示的是该资源的单独详情页入口。你可以先看摘要，再决定是直接打开原始资源，还是去资源中心收藏和评分。</p>
+                <p>这里展示的是该资源的独立详情入口。关闭弹窗不会记录浏览行为；只有真正点击打开原始资源、收藏或评分时，系统才会更新你的行为数据。</p>
                 <div class="tag-row">
                   {% for tag in item.tags %}
                     <span>{{ tag }}</span>
@@ -94,50 +94,4 @@
     </tbody>
   </table>
 </article>
-
-<script>
-  async function openRecommendationDialog(resourceId) {
-    const dialog = document.getElementById(`resource-dialog-${resourceId}`);
-    if (!dialog) return;
-    dialog.showModal();
-    if (dialog.dataset.logged === "1") return;
-
-    const formData = new FormData();
-    formData.append("resource_id", resourceId);
-    formData.append("action", "view");
-
-    try {
-      const response = await fetch("{{ url_for('log_activity_async', user_id=user_id) }}", {
-        method: "POST",
-        body: formData
-      });
-      if (!response.ok) throw new Error("log failed");
-      const payload = await response.json();
-      dialog.dataset.logged = "1";
-      dialog.dataset.shouldRefresh = "1";
-      updateBehaviorMix(payload.behavior_mix || []);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  function closeRecommendationDialog(resourceId) {
-    const dialog = document.getElementById(`resource-dialog-${resourceId}`);
-    if (!dialog) return;
-    const shouldRefresh = dialog.dataset.shouldRefresh === "1";
-    dialog.close();
-    if (shouldRefresh) {
-      window.location.href = "{{ url_for('recommendations', user_id=user_id) }}";
-    }
-  }
-
-  function updateBehaviorMix(items) {
-    items.forEach((item) => {
-      const node = document.querySelector(`[data-action-total="${item.action}"]`);
-      if (node) {
-        node.textContent = item.total;
-      }
-    });
-  }
-</script>
 {% endblock %}

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, flash, g, redirect, render_template, request, send_file, url_for
 from werkzeug.utils import secure_filename
 
 
@@ -466,6 +466,19 @@ def resource_rows(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
             "SELECT 1 FROM activity_logs WHERE user_id = ? AND resource_id = ? AND action = 'favorite' LIMIT 1",
             (user_id, row["id"]),
         ).fetchone() is not None
+        item["comments"] = [
+            dict(comment)
+            for comment in db.execute(
+                """
+                SELECT resource_ratings.rating, resource_ratings.comment, resource_ratings.created_at, users.name AS author_name
+                FROM resource_ratings
+                JOIN users ON users.id = resource_ratings.user_id
+                WHERE resource_ratings.resource_id = ? AND trim(resource_ratings.comment) != ''
+                ORDER BY resource_ratings.created_at DESC, resource_ratings.id DESC
+                """,
+                (row["id"],),
+            ).fetchall()
+        ]
         result.append(item)
     return result
 
@@ -572,7 +585,14 @@ def hot_scores(db: sqlite3.Connection) -> dict[int, float]:
 def recommend_resources(db: sqlite3.Connection, user_id: int, top_n: int = 6) -> list[dict[str, Any]]:
     seen_ids = {
         row["resource_id"]
-        for row in db.execute("SELECT DISTINCT resource_id FROM activity_logs WHERE user_id = ? AND resource_id IS NOT NULL", (user_id,)).fetchall()
+        for row in db.execute(
+            """
+            SELECT DISTINCT resource_id
+            FROM activity_logs
+            WHERE user_id = ? AND resource_id IS NOT NULL AND action = 'favorite'
+            """,
+            (user_id,),
+        ).fetchall()
     }
     by_content = content_scores(db, user_id)
     by_collab = collaborative_scores(db, user_id)
@@ -721,6 +741,15 @@ def inject_globals() -> dict[str, Any]:
     db = get_db()
     users = db.execute("SELECT id, name, role FROM users ORDER BY id").fetchall()
     return {"current_user": g.current_user, "users": users, "user_id": current_user_id()}
+
+
+@app.route("/switch-user")
+def switch_user() -> Any:
+    selected_user_id = current_user_id()
+    user = get_db().execute("SELECT id FROM users WHERE id = ?", (selected_user_id,)).fetchone()
+    if user is None:
+        abort(404)
+    return redirect(url_for("index", user_id=selected_user_id))
 
 
 @app.template_filter("split_tags")
@@ -1096,7 +1125,7 @@ def download_resource(resource_id: int) -> Any:
 
 @app.route("/resources/<int:resource_id>/favorite", methods=["POST"])
 def favorite_resource(resource_id: int) -> Any:
-    require_roles("student")
+    require_roles("student", "teacher", "admin")
     db = get_db()
     resource = db.execute("SELECT course_id FROM resources WHERE id = ?", (resource_id,)).fetchone()
     if resource is None:
@@ -1220,41 +1249,6 @@ def log_activity() -> Any:
     db.commit()
     flash("行为已记录，行为构成和 Top-N 推荐会根据最新数据即时变化。")
     return redirect(url_for("recommendations", user_id=current_user_id()))
-
-
-@app.route("/activity/log-async", methods=["POST"])
-def log_activity_async() -> Any:
-    require_roles("student")
-    db = get_db()
-    resource_id = int(request.form["resource_id"])
-    action = request.form["action"]
-    weight_map = {"view": 1.0, "favorite": 2.5, "rate": 3.0}
-    course = db.execute("SELECT course_id FROM resources WHERE id = ?", (resource_id,)).fetchone()
-    if course is None:
-        abort(404)
-    db.execute(
-        "INSERT INTO activity_logs (user_id, resource_id, course_id, action, weight, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (current_user_id(), resource_id, course["course_id"], action, weight_map.get(action, 1.0), now_string()),
-    )
-    if action == "rate":
-        existing = db.execute(
-            "SELECT id FROM resource_ratings WHERE resource_id = ? AND user_id = ?",
-            (resource_id, current_user_id()),
-        ).fetchone()
-        if existing is None:
-            db.execute(
-                "INSERT INTO resource_ratings (resource_id, user_id, rating, comment, created_at) VALUES (?, ?, 5, ?, ?)",
-                (resource_id, current_user_id(), "来自推荐弹窗的高评分反馈", now_string()),
-            )
-    db.commit()
-    behavior_mix = [
-        {"action": row["action"], "total": row["total"]}
-        for row in db.execute(
-            "SELECT action, COUNT(*) AS total FROM activity_logs WHERE user_id = ? GROUP BY action ORDER BY total DESC",
-            (current_user_id(),),
-        ).fetchall()
-    ]
-    return jsonify({"ok": True, "behavior_mix": behavior_mix})
 
 
 @app.route("/refresh")

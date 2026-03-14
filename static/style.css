@@ -234,6 +234,14 @@ button {
 .inline-form { display: grid; gap: 8px; }
 .stack-form { display: grid; gap: 8px; }
 .muted-note { font-size: 14px; color: var(--muted); }
+.comment-block { display: grid; gap: 12px; margin-top: 18px; }
+.comment-list { display: grid; gap: 10px; }
+.comment-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(215, 200, 179, 0.85);
+  background: #fbf6ef;
+}
 
 .link-button,
 .ghost-button {
