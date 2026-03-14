@@ -4,20 +4,22 @@
 <section class="page-head">
   <p class="eyebrow">Resources</p>
   <h2>资源中心</h2>
-  <p>资源可直接跳转到真实学习网页，也可下载平台生成的学习导读文件，还支持评分。</p>
+  <p>资源可以直接跳转到真实学习网页，也可以下载平台生成的学习导读文件。收藏、评分、浏览、下载都会进入行为日志，并影响课程进度与推荐结果。</p>
 </section>
+
 <form class="search-row" method="get">
   <input type="hidden" name="user_id" value="{{ user_id }}">
-  <input type="text" name="q" value="{{ query }}" placeholder="搜索资源标题、课程、标签">
+  <input type="text" name="q" value="{{ query }}" placeholder="搜索资源标题、课程或标签">
   <button type="submit">搜索</button>
 </form>
+
 <section class="card-grid">
   {% for item in resources %}
     <article class="panel">
       <h3>{{ item.title }}</h3>
-      <p>{{ item.course_title }} · {{ item.resource_type }}</p>
+      <p>{{ item.course_title }} / {{ item.resource_type }}</p>
       <p>{{ item.summary }}</p>
-      <p>浏览：{{ item.views }} · 收藏：{{ item.favorites }} · 下载：{{ item.downloads }} · 平均评分：{{ item.avg_rating }}（{{ item.rating_count }}人）</p>
+      <p>浏览：{{ item.views }} / 收藏：{{ item.favorites }} / 下载：{{ item.downloads }} / 平均评分：{{ item.avg_rating }}（{{ item.rating_count }}人）</p>
       <div class="tag-row">
         {% for tag in item.tags|split_tags %}
           <span>{{ tag }}</span>

@@ -12,14 +12,14 @@
         <div class="brand-card">
           <p class="eyebrow">Teaching Platform</p>
           <h1>智慧教学推荐系统</h1>
-          <p>一个有角色、有数据来源、有提交流程和推荐反馈闭环的最小教学平台。</p>
+          <p>面向学生、教师、管理员三类角色的教学平台。这里保留课程、作业、资源、通知和推荐的完整业务链路，而不是只展示静态卡片。</p>
         </div>
 
         <form class="switcher" method="get" action="{{ request.path }}">
           <label for="user_id">当前用户</label>
           <select id="user_id" name="user_id" onchange="this.form.submit()">
             {% for item in users %}
-              <option value="{{ item.id }}" {% if item.id == user_id %}selected{% endif %}>{{ item.name }} · {{ item.role }}</option>
+              <option value="{{ item.id }}" {% if item.id == user_id %}selected{% endif %}>{{ item.name }} / {{ item.role }}</option>
             {% endfor %}
           </select>
         </form>

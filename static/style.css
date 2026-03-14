@@ -232,6 +232,8 @@ button {
 }
 
 .inline-form { display: grid; gap: 8px; }
+.stack-form { display: grid; gap: 8px; }
+.muted-note { font-size: 14px; color: var(--muted); }
 
 .link-button,
 .ghost-button {

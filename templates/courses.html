@@ -4,17 +4,28 @@
 <section class="page-head">
   <p class="eyebrow">Courses</p>
   <h2>课程中心</h2>
-  <p>学生看的是个人课程进度，教师和管理端看的是课程提交率与选课规模。</p>
+  <p>学生看到的是自己的课程进度，教师和管理端看到的是课程提交率与选课规模。课程进度按“你已产生学习行为的资源数 / 该课程资源总数”计算，所以只有浏览、收藏、评分、下载过资源后，进度才会上升。</p>
 </section>
+
 <section class="card-grid">
   {% for course in courses %}
     <article class="list-card">
       <h3>{{ course.title }}</h3>
-      <p>{{ course.category }} · {{ course.teacher_name }}</p>
+      <p>{{ course.category }} / {{ course.teacher_name }}</p>
       <p>{{ course.description }}</p>
-      <p>学生数：{{ course.students }}</p>
+      <p>选课人数：{{ course.students }}</p>
+
       {% if current_user.role == 'student' %}
-        <p>我的课程进度：{{ course.progress }}%</p>
+        {% if course.is_enrolled %}
+          <p>我的课程进度：{{ course.progress }}%</p>
+          <p class="muted-note">进度公式：已学习资源数 / 课程资源总数</p>
+        {% else %}
+          <p>当前状态：未选课</p>
+          <form method="post" action="{{ url_for('enroll_course', course_id=course.id) }}" class="stack-form">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <button type="submit">立即选课</button>
+          </form>
+        {% endif %}
       {% else %}
         <p>课程作业提交率：{{ course.submission_rate }}%</p>
       {% endif %}
