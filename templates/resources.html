@@ -4,7 +4,6 @@
 <section class="page-head">
   <p class="eyebrow">Resources</p>
   <h2>资源中心</h2>
-  <p>资源可以直接跳转到真实学习网页，也可以下载平台生成的学习导读文件。收藏、评分、浏览、下载都会进入行为日志，并影响课程进度与推荐结果。</p>
 </section>
 
 <form class="search-row" method="get">
@@ -50,18 +49,23 @@
       </form>
 
       <section class="comment-block">
-        <h4>资源评价</h4>
+        <div class="panel-head">
+          <h4>资源评价</h4>
+          <span>{{ item.comments|length }} 条</span>
+        </div>
         {% if item.comments %}
-          <div class="comment-list">
-            {% for comment in item.comments %}
-              <article class="comment-card">
-                <div class="panel-head">
-                  <strong>{{ comment.author_name }}</strong>
-                  <span>{{ comment.rating }} 星 / {{ comment.created_at }}</span>
-                </div>
-                <p>{{ comment.comment }}</p>
-              </article>
-            {% endfor %}
+          <div class="comment-scroll">
+            <div class="comment-list">
+              {% for comment in item.comments %}
+                <article class="comment-card">
+                  <div class="panel-head">
+                    <strong>{{ comment.author_name }}</strong>
+                    <span>{{ comment.rating }} 星 / {{ comment.created_at }}</span>
+                  </div>
+                  <p>{{ comment.comment }}</p>
+                </article>
+              {% endfor %}
+            </div>
           </div>
         {% else %}
           <p class="muted-note">暂时还没有文字评价。</p>

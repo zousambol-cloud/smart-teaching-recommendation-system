@@ -4,12 +4,12 @@
 <section class="page-head">
   <p class="eyebrow">Courses</p>
   <h2>课程中心</h2>
-  <p>学生看到的是自己的课程进度，教师和管理端看到的是课程提交率与选课规模。课程进度按“你已产生学习行为的资源数 / 该课程资源总数”计算，所以只有浏览、收藏、评分、下载过资源后，进度才会上升。</p>
+  <p>课程进度按“已产生学习行为的资源数 / 课程资源总数”计算。下方列出的应学资源就是进度统计的依据。</p>
 </section>
 
 <section class="card-grid">
   {% for course in courses %}
-    <article class="list-card">
+    <article class="panel">
       <h3>{{ course.title }}</h3>
       <p>{{ course.category }} / {{ course.teacher_name }}</p>
       <p>{{ course.description }}</p>
@@ -29,6 +29,42 @@
       {% else %}
         <p>课程作业提交率：{{ course.submission_rate }}%</p>
       {% endif %}
+
+      <section class="course-resource-block">
+        <div class="panel-head">
+          <h4>应学资源</h4>
+          <span>{{ course.resources|length }} 项</span>
+        </div>
+        <div class="course-resource-list">
+          {% for resource in course.resources %}
+            <button type="button" class="resource-pill {% if resource.completed %}resource-pill-done{% endif %}" onclick="document.getElementById('course-resource-dialog-{{ course.id }}-{{ resource.id }}').showModal()">
+              {{ resource.title }}
+            </button>
+            <dialog id="course-resource-dialog-{{ course.id }}-{{ resource.id }}" class="resource-dialog">
+              <article class="dialog-card">
+                <div class="panel-head">
+                  <h3>{{ resource.title }}</h3>
+                  <button type="button" class="ghost-button" onclick="document.getElementById('course-resource-dialog-{{ course.id }}-{{ resource.id }}').close()">关闭</button>
+                </div>
+                <p>{{ course.title }} / {{ resource.resource_type }}</p>
+                <p>{{ resource.summary }}</p>
+                <div class="tag-row">
+                  {% for tag in resource.tags %}
+                    <span>{{ tag }}</span>
+                  {% endfor %}
+                </div>
+                {% if current_user.role == 'student' %}
+                  <p>{% if resource.completed %}你已对该资源产生学习行为，已计入当前课程进度。{% else %}打开资源、下载导读、收藏或评分后，该资源才会计入课程进度。{% endif %}</p>
+                {% endif %}
+                <div class="action-row">
+                  <a href="{{ url_for('open_resource', resource_id=resource.id, user_id=user_id) }}" target="_blank" rel="noopener">打开原始资源</a>
+                  <a href="{{ url_for('resources', user_id=user_id) }}">去资源中心查看评价</a>
+                </div>
+              </article>
+            </dialog>
+          {% endfor %}
+        </div>
+      </section>
     </article>
   {% endfor %}
 </section>

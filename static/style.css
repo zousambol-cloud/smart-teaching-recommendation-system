@@ -236,11 +236,29 @@ button {
 .muted-note { font-size: 14px; color: var(--muted); }
 .comment-block { display: grid; gap: 12px; margin-top: 18px; }
 .comment-list { display: grid; gap: 10px; }
+.comment-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
 .comment-card {
   padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid rgba(215, 200, 179, 0.85);
   background: #fbf6ef;
+}
+.course-resource-block { display: grid; gap: 12px; margin-top: 18px; }
+.course-resource-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.resource-pill {
+  width: auto;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: #6b5325;
+}
+.resource-pill-done {
+  background: #e7f3f1;
+  color: var(--accent);
 }
 
 .link-button,

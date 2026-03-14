@@ -5,7 +5,6 @@
   <div>
     <p class="eyebrow">Overview</p>
     <h2>系统总览</h2>
-    <p>当前页面显示的每个指标都来自数据库实时计算，不再是写死的静态文本。</p>
   </div>
   <div class="hero-user">
     <span class="badge">{{ current_user.role }}</span>
@@ -53,8 +52,8 @@
         {% for course in student_data.courses %}
           <div class="list-card">
             <h4>{{ course.title }}</h4>
-            <p>课程进度按已浏览资源占比计算：{{ course.progress }}%</p>
-            <p>课程作业提交率：{{ course.submission_rate }}%</p>
+            <p>课程进度：{{ course.progress }}%</p>
+            <p>作业提交率：{{ course.submission_rate }}%</p>
           </div>
         {% endfor %}
       </div>
@@ -68,7 +67,7 @@
         {% for item in student_data.recommendations %}
           <div class="list-card">
             <h4>{{ item.title }}</h4>
-            <p>{{ item.course_title }} · 总分 {{ item.score }}</p>
+            <p>{{ item.course_title }} / 总分 {{ item.score }}</p>
           </div>
         {% endfor %}
       </div>
@@ -96,7 +95,7 @@
       <div class="card-list">
         {% for item in teacher_data.submissions %}
           <div class="list-card">
-            <h4>{{ item.student_name }} · {{ item.assignment_title }}</h4>
+            <h4>{{ item.student_name }} / {{ item.assignment_title }}</h4>
             <p>{{ item.course_title }}</p>
           </div>
         {% endfor %}
@@ -123,7 +122,7 @@
         {% for item in admin_data.notifications %}
           <div class="list-card">
             <h4>{{ item.title }}</h4>
-            <p>{{ item.category }} · {{ item.author_name }}</p>
+            <p>{{ item.category }} / {{ item.author_name }}</p>
           </div>
         {% endfor %}
       </div>

@@ -227,8 +227,8 @@ def init_db() -> None:
         (1, "Sorting HOW TO", "文档", "python,排序,算法", "https://docs.python.org/3/howto/sorting.html", "Python 官方排序指南，可对应算法与数据处理内容。"),
         (2, "SQLite 官方文档", "文档", "数据库,sql,sqlite", "https://www.sqlite.org/docs.html", "SQLite 官方文档入口，适合数据库系统原理课程查阅。"),
         (2, "SQLite Query Language", "文档", "sql,查询,数据库", "https://www.sqlite.org/lang.html", "SQLite SQL 语法索引，适合查询、建模和事务学习。"),
-        (3, "scikit-learn 教程", "文档", "机器学习,sklearn,教程", "https://scikit-learn.org/stable/tutorial/index.html", "scikit-learn 官方教程，适合机器学习导论课程。"),
-        (3, "Supervised Learning Guide", "文档", "机器学习,分类,回归", "https://scikit-learn.org/stable/supervised_learning.html", "scikit-learn 官方监督学习指南。"),
+        (3, "scikit-learn 入门", "文档", "机器学习,sklearn,教程", "https://scikit-learn.org/stable/", "scikit-learn 官方稳定版首页，包含 Getting Started 与用户指南入口。"),
+        (3, "scikit-learn 用户指南", "文档", "机器学习,分类,回归", "https://scikit-learn.org/stable/user_guide.html", "scikit-learn 官方用户指南入口。"),
         (4, "Google Recommendation Overview", "文档", "推荐算法,推荐系统,概览", "https://developers.google.com/machine-learning/recommendation", "Google 机器学习课程中的推荐系统总览。"),
         (4, "Content-based Filtering", "文档", "推荐算法,内容推荐,特征工程", "https://developers.google.com/machine-learning/recommendation/content-based/basics", "Google 推荐系统课程中的内容推荐基础。"),
         (4, "Collaborative Filtering", "文档", "推荐算法,协同过滤,相似度", "https://developers.google.com/machine-learning/recommendation/collaborative/basics", "Google 推荐系统课程中的协同过滤基础。"),
@@ -387,6 +387,34 @@ def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict
                 "SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?",
                 (user_id, row["id"]),
             ).fetchone() is not None
+        resources = []
+        for resource in db.execute(
+            """
+            SELECT id, title, resource_type, tags, url, summary
+            FROM resources
+            WHERE course_id = ?
+            ORDER BY id
+            """,
+            (row["id"],),
+        ).fetchall():
+            completed = False
+            if user_id:
+                completed = db.execute(
+                    """
+                    SELECT 1
+                    FROM activity_logs
+                    WHERE user_id = ? AND course_id = ? AND resource_id = ?
+                    LIMIT 1
+                    """,
+                    (user_id, row["id"], resource["id"]),
+                ).fetchone() is not None
+            resources.append(
+                {
+                    **dict(resource),
+                    "tags": parse_tags(resource["tags"]),
+                    "completed": completed,
+                }
+            )
         result.append(
             {
                 **dict(row),
@@ -394,6 +422,7 @@ def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict
                 "progress": course_progress_for_user(db, user_id, row["id"]) if user_id else course_submission_rate(db, row["id"]),
                 "submission_rate": course_submission_rate(db, row["id"]),
                 "is_enrolled": is_enrolled,
+                "resources": resources,
             }
         )
     return result
@@ -1251,10 +1280,10 @@ def log_activity() -> Any:
     return redirect(url_for("recommendations", user_id=current_user_id()))
 
 
-@app.route("/refresh")
+@app.route("/refresh", methods=["POST"])
 def refresh() -> Any:
     init_db()
-    flash("平台内容已刷新。")
+    flash("系统已重置为默认演示数据。")
     return redirect(url_for("index", user_id=current_user_id()))
 
 

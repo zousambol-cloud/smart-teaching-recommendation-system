@@ -12,7 +12,7 @@
         <div class="brand-card">
           <p class="eyebrow">Teaching Platform</p>
           <h1>智慧教学推荐系统</h1>
-          <p>面向学生、教师、管理员三类角色的教学平台，保留课程、作业、资源、通知和推荐的完整业务链路，而不是只展示静态卡片。</p>
+          <p>课程、作业、资源、通知和推荐统一在同一套业务流程里运行。</p>
         </div>
 
         <form class="switcher" method="get" action="{{ url_for('switch_user') }}">
@@ -41,8 +41,12 @@
           <a href="{{ url_for('assignments', user_id=user_id) }}">作业中心</a>
           <a href="{{ url_for('resources', user_id=user_id) }}">资源中心</a>
           <a href="{{ url_for('announcements', user_id=user_id) }}">通知中心</a>
-          <a href="{{ url_for('refresh', user_id=user_id) }}">刷新平台内容</a>
         </nav>
+
+        <form method="post" action="{{ url_for('refresh', user_id=user_id) }}" onsubmit="return confirm('确认将当前系统重置为默认演示数据？此操作会清空你当前新增和修改的数据。');">
+          <input type="hidden" name="user_id" value="{{ user_id }}">
+          <button type="submit">刷新平台内容</button>
+        </form>
       </aside>
 
       <main class="content">
