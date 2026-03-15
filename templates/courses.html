@@ -4,7 +4,6 @@
 <section class="page-head">
   <p class="eyebrow">Courses</p>
   <h2>课程中心</h2>
-  <p>课程进度按“已产生学习行为的资源数 / 课程资源总数”计算。下方列出的应学资源就是进度统计的依据。</p>
 </section>
 
 <section class="card-grid">
@@ -16,7 +15,7 @@
           <p>{{ course.category }} / {{ course.teacher_name }}</p>
         </div>
         {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or current_user.id == course.teacher_id) %}
-          <div class="action-row">
+          <div class="toolbar-buttons">
             <button type="button" onclick="document.getElementById('course-resource-create-{{ course.id }}').showModal()">新增应学资源</button>
             <button type="button" onclick="document.getElementById('course-assignment-create-{{ course.id }}').showModal()">发布作业</button>
           </div>
@@ -28,7 +27,6 @@
       {% if current_user.role == 'student' %}
         {% if course.is_enrolled %}
           <p>我的课程进度：{{ course.progress }}%</p>
-          <p class="muted-note">进度公式：已学习资源数 / 课程资源总数</p>
         {% else %}
           <p>当前状态：未选课</p>
           <form method="post" action="{{ url_for('enroll_course', course_id=course.id) }}" class="stack-form">
