@@ -10,8 +10,18 @@
 <section class="card-grid">
   {% for course in courses %}
     <article class="panel">
-      <h3>{{ course.title }}</h3>
-      <p>{{ course.category }} / {{ course.teacher_name }}</p>
+      <div class="panel-head">
+        <div>
+          <h3>{{ course.title }}</h3>
+          <p>{{ course.category }} / {{ course.teacher_name }}</p>
+        </div>
+        {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or current_user.id == course.teacher_id) %}
+          <div class="action-row">
+            <button type="button" onclick="document.getElementById('course-resource-create-{{ course.id }}').showModal()">新增应学资源</button>
+            <button type="button" onclick="document.getElementById('course-assignment-create-{{ course.id }}').showModal()">发布作业</button>
+          </div>
+        {% endif %}
+      </div>
       <p>{{ course.description }}</p>
       <p>选课人数：{{ course.students }}</p>
 
@@ -60,11 +70,94 @@
                   <a href="{{ url_for('open_resource', resource_id=resource.id, user_id=user_id) }}" target="_blank" rel="noopener">打开原始资源</a>
                   <a href="{{ url_for('resources', user_id=user_id) }}">去资源中心查看评价</a>
                 </div>
+                {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or current_user.id == course.teacher_id) %}
+                  <form method="post" action="{{ url_for('update_course_resource', course_id=course.id, resource_id=resource.id) }}">
+                    <input type="hidden" name="user_id" value="{{ user_id }}">
+                    <input type="text" name="title" value="{{ resource.title }}" required>
+                    <input type="text" name="resource_type" value="{{ resource.resource_type }}" required>
+                    <input type="text" name="tags" value="{{ resource.tags|join(',') }}" required>
+                    <input type="url" name="url" value="{{ resource.url }}" required>
+                    <textarea name="summary" rows="3" required>{{ resource.summary }}</textarea>
+                    <button type="submit">更新资源</button>
+                  </form>
+                {% endif %}
               </article>
             </dialog>
           {% endfor %}
         </div>
       </section>
+
+      {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or current_user.id == course.teacher_id) %}
+        <section class="course-assignment-block">
+          <div class="panel-head">
+            <h4>课程作业</h4>
+            <span>{{ course.assignments|length }} 项</span>
+          </div>
+          <div class="assignment-grid">
+            {% for assignment in course.assignments %}
+              <article class="list-card">
+                <h4>{{ assignment.title }}</h4>
+                <p>截止：{{ assignment.due_date }} / 满分：{{ assignment.max_score }}</p>
+                <p>{{ assignment.description }}</p>
+                <div class="panel-head">
+                  <strong>未交名单</strong>
+                  <span>{{ assignment.pending_count }} 人</span>
+                </div>
+                {% if assignment.pending_students %}
+                  <div class="pending-scroll">
+                    <div class="pending-list">
+                      {% for student in assignment.pending_students %}
+                        <span class="pending-chip">{{ student.name }}</span>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  <form method="post" action="{{ url_for('remind_assignment_pending_students', assignment_id=assignment.id) }}">
+                    <input type="hidden" name="user_id" value="{{ user_id }}">
+                    <button type="submit">一键催交未提交学生</button>
+                  </form>
+                {% else %}
+                  <p class="muted-note">当前没有未提交学生。</p>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+
+        <dialog id="course-resource-create-{{ course.id }}" class="resource-dialog">
+          <article class="dialog-card">
+            <div class="panel-head">
+              <h3>新增应学资源</h3>
+              <button type="button" class="ghost-button" onclick="document.getElementById('course-resource-create-{{ course.id }}').close()">关闭</button>
+            </div>
+            <form method="post" action="{{ url_for('create_course_resource', course_id=course.id) }}">
+              <input type="hidden" name="user_id" value="{{ user_id }}">
+              <input type="text" name="title" placeholder="资源标题" required>
+              <input type="text" name="resource_type" placeholder="资源类型，如文档/视频/案例" required>
+              <input type="text" name="tags" placeholder="标签，逗号分隔" required>
+              <input type="url" name="url" placeholder="资源链接" required>
+              <textarea name="summary" rows="4" placeholder="资源内容说明" required></textarea>
+              <button type="submit">保存资源</button>
+            </form>
+          </article>
+        </dialog>
+
+        <dialog id="course-assignment-create-{{ course.id }}" class="resource-dialog">
+          <article class="dialog-card">
+            <div class="panel-head">
+              <h3>发布课程作业</h3>
+              <button type="button" class="ghost-button" onclick="document.getElementById('course-assignment-create-{{ course.id }}').close()">关闭</button>
+            </div>
+            <form method="post" action="{{ url_for('create_course_assignment', course_id=course.id) }}">
+              <input type="hidden" name="user_id" value="{{ user_id }}">
+              <input type="text" name="title" placeholder="作业标题" required>
+              <textarea name="description" rows="4" placeholder="作业要求" required></textarea>
+              <input type="date" name="due_date" required>
+              <input type="number" name="max_score" min="1" value="100" required>
+              <button type="submit">发布作业</button>
+            </form>
+          </article>
+        </dialog>
+      {% endif %}
     </article>
   {% endfor %}
 </section>

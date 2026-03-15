@@ -160,6 +160,9 @@ a { color: inherit; text-decoration: none; }
 .card-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.compact-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 
 .panel-head,
 .action-row {
@@ -248,7 +251,9 @@ button {
   background: #fbf6ef;
 }
 .course-resource-block { display: grid; gap: 12px; margin-top: 18px; }
+.course-assignment-block { display: grid; gap: 12px; margin-top: 18px; }
 .course-resource-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.assignment-grid { display: grid; gap: 12px; }
 .resource-pill {
   width: auto;
   padding: 10px 14px;
@@ -259,6 +264,25 @@ button {
 .resource-pill-done {
   background: #e7f3f1;
   color: var(--accent);
+}
+.pending-scroll {
+  max-height: 120px;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin: 8px 0 12px;
+}
+.pending-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pending-chip {
+  display: inline-flex;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: #6b5325;
+  font-size: 13px;
 }
 
 .link-button,

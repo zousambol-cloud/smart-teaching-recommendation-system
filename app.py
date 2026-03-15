@@ -129,12 +129,14 @@ def init_db() -> None:
         CREATE TABLE notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             author_id INTEGER NOT NULL,
+            recipient_id INTEGER,
             title TEXT NOT NULL,
             category TEXT NOT NULL,
             content TEXT NOT NULL,
             created_at TEXT NOT NULL,
             priority TEXT NOT NULL,
-            FOREIGN KEY(author_id) REFERENCES users(id)
+            FOREIGN KEY(author_id) REFERENCES users(id),
+            FOREIGN KEY(recipient_id) REFERENCES users(id)
         );
 
         CREATE TABLE submissions (
@@ -415,6 +417,43 @@ def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict
                     "completed": completed,
                 }
             )
+        assignments = []
+        for assignment in db.execute(
+            """
+            SELECT *
+            FROM assignments
+            WHERE course_id = ?
+            ORDER BY due_date, id
+            """,
+            (row["id"],),
+        ).fetchall():
+            pending_students = [
+                dict(student)
+                for student in db.execute(
+                    """
+                    SELECT users.id, users.name
+                    FROM enrollments
+                    JOIN users ON users.id = enrollments.user_id
+                    WHERE enrollments.course_id = ?
+                    AND users.role = 'student'
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM submissions
+                        WHERE submissions.assignment_id = ?
+                        AND submissions.student_id = users.id
+                    )
+                    ORDER BY users.name
+                    """,
+                    (row["id"], assignment["id"]),
+                ).fetchall()
+            ]
+            assignments.append(
+                {
+                    **dict(assignment),
+                    "pending_students": pending_students,
+                    "pending_count": len(pending_students),
+                }
+            )
         result.append(
             {
                 **dict(row),
@@ -423,6 +462,7 @@ def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict
                 "submission_rate": course_submission_rate(db, row["id"]),
                 "is_enrolled": is_enrolled,
                 "resources": resources,
+                "assignments": assignments,
             }
         )
     return result
@@ -512,15 +552,42 @@ def resource_rows(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
     return result
 
 
-def notification_rows(db: sqlite3.Connection) -> list[sqlite3.Row]:
+def favorite_resource_rows(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
+    return [row for row in resource_rows(db, user_id) if row["is_favorited"]]
+
+
+def notification_rows(db: sqlite3.Connection, user_id: int, role: str) -> list[sqlite3.Row]:
+    if role == "student":
+        return db.execute(
+            """
+            SELECT notifications.*, authors.name AS author_name, recipients.name AS recipient_name
+            FROM notifications
+            JOIN users AS authors ON authors.id = notifications.author_id
+            LEFT JOIN users AS recipients ON recipients.id = notifications.recipient_id
+            WHERE notifications.recipient_id IS NULL OR notifications.recipient_id = ?
+            ORDER BY notifications.created_at DESC
+            """,
+            (user_id,),
+        ).fetchall()
     return db.execute(
         """
-        SELECT notifications.*, users.name AS author_name
+        SELECT notifications.*, authors.name AS author_name, recipients.name AS recipient_name
         FROM notifications
-        JOIN users ON users.id = notifications.author_id
+        JOIN users AS authors ON authors.id = notifications.author_id
+        LEFT JOIN users AS recipients ON recipients.id = notifications.recipient_id
         ORDER BY notifications.created_at DESC
         """
     ).fetchall()
+
+
+def can_manage_course(user_id: int, course_id: int) -> bool:
+    db = get_db()
+    user = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if user is None:
+        return False
+    if user["role"] == "admin":
+        return True
+    return db.execute("SELECT 1 FROM courses WHERE id = ? AND teacher_id = ?", (course_id, user_id)).fetchone() is not None
 
 
 def pending_assignments_count(db: sqlite3.Connection, user_id: int) -> int:
@@ -717,7 +784,7 @@ def admin_dashboard_data(db: sqlite3.Connection) -> dict[str, Any]:
         "site_courses": db.execute("SELECT COUNT(*) FROM courses").fetchone()[0],
         "site_users": db.execute("SELECT COUNT(*) FROM users").fetchone()[0],
         "site_submissions": db.execute("SELECT COUNT(*) FROM submissions").fetchone()[0],
-        "notifications": notification_rows(db)[:6],
+        "notifications": notification_rows(db, current_user_id(), g.current_user["role"])[:6],
     }
 
 
@@ -762,7 +829,12 @@ def admin_management_data(db: sqlite3.Connection) -> dict[str, Any]:
 def ensure_database() -> None:
     if not DATABASE_PATH.exists():
         init_db()
-    g.current_user = get_db().execute("SELECT * FROM users WHERE id = ?", (current_user_id(),)).fetchone()
+    db = get_db()
+    notification_columns = [row["name"] for row in db.execute("PRAGMA table_info(notifications)").fetchall()]
+    if "recipient_id" not in notification_columns:
+        db.execute("ALTER TABLE notifications ADD COLUMN recipient_id INTEGER")
+        db.commit()
+    g.current_user = db.execute("SELECT * FROM users WHERE id = ?", (current_user_id(),)).fetchone()
 
 
 @app.context_processor
@@ -1025,6 +1097,134 @@ def enroll_course(course_id: int) -> Any:
     return redirect(url_for("courses", user_id=current_user_id()))
 
 
+@app.route("/courses/<int:course_id>/resources/create", methods=["POST"])
+def create_course_resource(course_id: int) -> Any:
+    require_roles("teacher", "admin")
+    if not can_manage_course(current_user_id(), course_id):
+        abort(403)
+    db = get_db()
+    db.execute(
+        "INSERT INTO resources (course_id, title, resource_type, tags, url, summary) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            course_id,
+            request.form["title"].strip(),
+            request.form["resource_type"].strip(),
+            request.form["tags"].strip(),
+            request.form["url"].strip(),
+            request.form["summary"].strip(),
+        ),
+    )
+    db.commit()
+    flash("应学资源已新增。")
+    return redirect(url_for("courses", user_id=current_user_id()))
+
+
+@app.route("/courses/<int:course_id>/resources/<int:resource_id>/update", methods=["POST"])
+def update_course_resource(course_id: int, resource_id: int) -> Any:
+    require_roles("teacher", "admin")
+    if not can_manage_course(current_user_id(), course_id):
+        abort(403)
+    db = get_db()
+    db.execute(
+        """
+        UPDATE resources
+        SET title = ?, resource_type = ?, tags = ?, url = ?, summary = ?
+        WHERE id = ? AND course_id = ?
+        """,
+        (
+            request.form["title"].strip(),
+            request.form["resource_type"].strip(),
+            request.form["tags"].strip(),
+            request.form["url"].strip(),
+            request.form["summary"].strip(),
+            resource_id,
+            course_id,
+        ),
+    )
+    db.commit()
+    flash("应学资源已更新。")
+    return redirect(url_for("courses", user_id=current_user_id()))
+
+
+@app.route("/courses/<int:course_id>/assignments/create", methods=["POST"])
+def create_course_assignment(course_id: int) -> Any:
+    require_roles("teacher", "admin")
+    if not can_manage_course(current_user_id(), course_id):
+        abort(403)
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO assignments (course_id, title, description, due_date, max_score)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            course_id,
+            request.form["title"].strip(),
+            request.form["description"].strip(),
+            request.form["due_date"].strip(),
+            int(request.form["max_score"]),
+        ),
+    )
+    db.commit()
+    flash("课程作业已发布。")
+    return redirect(url_for("courses", user_id=current_user_id()))
+
+
+@app.route("/assignments/<int:assignment_id>/remind", methods=["POST"])
+def remind_assignment_pending_students(assignment_id: int) -> Any:
+    require_roles("teacher", "admin")
+    db = get_db()
+    assignment = db.execute(
+        """
+        SELECT assignments.*, courses.title AS course_title
+        FROM assignments
+        JOIN courses ON courses.id = assignments.course_id
+        WHERE assignments.id = ?
+        """,
+        (assignment_id,),
+    ).fetchone()
+    if assignment is None:
+        abort(404)
+    if not can_manage_course(current_user_id(), assignment["course_id"]):
+        abort(403)
+    pending_students = db.execute(
+        """
+        SELECT users.id, users.name
+        FROM enrollments
+        JOIN users ON users.id = enrollments.user_id
+        WHERE enrollments.course_id = ?
+        AND users.role = 'student'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM submissions
+            WHERE submissions.assignment_id = ?
+            AND submissions.student_id = users.id
+        )
+        ORDER BY users.name
+        """,
+        (assignment["course_id"], assignment_id),
+    ).fetchall()
+    for student in pending_students:
+        db.execute(
+            """
+            INSERT INTO notifications (author_id, recipient_id, title, category, content, created_at, priority)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                current_user_id(),
+                student["id"],
+                f"作业催交通知：{assignment['title']}",
+                "作业催交",
+                f"{student['name']}，请尽快提交《{assignment['title']}》。课程：{assignment['course_title']}，截止日期：{assignment['due_date']}。",
+                now_string(),
+                "高",
+            ),
+        )
+    db.commit()
+    flash(f"已向 {len(pending_students)} 名未提交学生发送定向催交通知。")
+    return redirect(url_for("courses", user_id=current_user_id()))
+
+
 @app.route("/assignments")
 def assignments() -> str:
     db = get_db()
@@ -1100,7 +1300,7 @@ def resources() -> str:
     rows = resource_rows(db, current_user_id())
     if query:
         rows = [row for row in rows if query in " ".join([row["title"], row["course_title"], row["resource_type"], row["tags"]]).lower()]
-    return render_template("resources.html", resources=rows, query=query)
+    return render_template("resources.html", resources=rows, favorites=favorite_resource_rows(db, current_user_id()), query=query)
 
 
 @app.route("/resources/<int:resource_id>/open")
@@ -1175,6 +1375,19 @@ def favorite_resource(resource_id: int) -> Any:
     return redirect(url_for("resources", user_id=current_user_id()))
 
 
+@app.route("/resources/<int:resource_id>/unfavorite", methods=["POST"])
+def unfavorite_resource(resource_id: int) -> Any:
+    require_roles("student", "teacher", "admin")
+    db = get_db()
+    db.execute(
+        "DELETE FROM activity_logs WHERE user_id = ? AND resource_id = ? AND action = 'favorite'",
+        (current_user_id(), resource_id),
+    )
+    db.commit()
+    flash("已取消收藏，资源会从个人收藏栏移除。")
+    return redirect(url_for("resources", user_id=current_user_id()))
+
+
 @app.route("/resources/<int:resource_id>/rate", methods=["POST"])
 def rate_resource(resource_id: int) -> Any:
     db = get_db()
@@ -1206,7 +1419,7 @@ def rate_resource(resource_id: int) -> Any:
 
 @app.route("/announcements")
 def announcements() -> str:
-    return render_template("announcements.html", notifications=notification_rows(get_db()))
+    return render_template("announcements.html", notifications=notification_rows(get_db(), current_user_id(), g.current_user["role"]))
 
 
 @app.route("/announcements/create", methods=["POST"])
@@ -1215,8 +1428,8 @@ def create_announcement() -> Any:
     db = get_db()
     db.execute(
         """
-        INSERT INTO notifications (author_id, title, category, content, created_at, priority)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO notifications (author_id, recipient_id, title, category, content, created_at, priority)
+        VALUES (?, NULL, ?, ?, ?, ?, ?)
         """,
         (
             current_user_id(),

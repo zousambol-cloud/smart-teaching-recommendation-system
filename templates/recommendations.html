@@ -40,7 +40,6 @@
         <th>协同过滤</th>
         <th>热度</th>
         <th>总分</th>
-        <th>行为记录</th>
       </tr>
     </thead>
     <tbody>
@@ -77,18 +76,6 @@
           <td>{{ item.collab_score }}</td>
           <td>{{ item.hot_score }}</td>
           <td>{{ item.score }}</td>
-          <td>
-            <form method="post" action="{{ url_for('log_activity') }}" class="inline-form">
-              <input type="hidden" name="user_id" value="{{ user_id }}">
-              <input type="hidden" name="resource_id" value="{{ item.id }}">
-              <select name="action">
-                <option value="view">记录为浏览</option>
-                <option value="favorite">记录为收藏</option>
-                <option value="rate">记录为高评分</option>
-              </select>
-              <button type="submit">更新</button>
-            </form>
-          </td>
         </tr>
       {% endfor %}
     </tbody>

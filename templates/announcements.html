@@ -27,7 +27,7 @@
   {% for item in notifications %}
     <article class="list-card">
       <h3>{{ item.title }}</h3>
-      <p>{{ item.category }} · {{ item.priority }}优先级 · {{ item.author_name }}</p>
+      <p>{{ item.category }} · {{ item.priority }}优先级 · {{ item.author_name }}{% if item.recipient_name %} · 定向给 {{ item.recipient_name }}{% endif %}</p>
       <p>{{ item.created_at }}</p>
       <p>{{ item.content }}</p>
     </article>
