@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
@@ -29,22 +29,22 @@
             <a href="{{ url_for('student_portal', user_id=user_id) }}">学生端</a>
             <a href="{{ url_for('analytics', user_id=user_id) }}">学习分析</a>
             <a href="{{ url_for('recommendations', user_id=user_id) }}">个性化推荐</a>
-          {% endif %}
-          {% if current_user.role == 'teacher' %}
+            <a href="{{ url_for('courses', user_id=user_id) }}">课程中心</a>
+            <a href="{{ url_for('assignments', user_id=user_id) }}">作业中心</a>
+          {% elif current_user.role == 'teacher' %}
             <a href="{{ url_for('teacher_portal', user_id=user_id) }}">教师端</a>
-          {% endif %}
-          {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('courses', user_id=user_id) }}">课程中心</a>
+            <a href="{{ url_for('assignments', user_id=user_id) }}">批改中心</a>
+          {% else %}
             <a href="{{ url_for('admin_portal', user_id=user_id) }}">管理端</a>
           {% endif %}
-          <a href="{{ url_for('courses', user_id=user_id) }}">课程中心</a>
-          <a href="{{ url_for('assignments', user_id=user_id) }}">作业中心</a>
           <a href="{{ url_for('resources', user_id=user_id) }}">资源中心</a>
           <a href="{{ url_for('announcements', user_id=user_id) }}">通知中心</a>
         </nav>
 
-        <form method="post" action="{{ url_for('refresh', user_id=user_id) }}" onsubmit="return confirm('确认将当前系统重置为默认演示数据？此操作会清空你当前新增和修改的数据。');">
+        <form method="post" action="{{ url_for('refresh', user_id=user_id) }}" onsubmit="return confirm('确认将当前平台恢复为默认平台数据吗？此操作会清空你当前新增和修改的数据。');">
           <input type="hidden" name="user_id" value="{{ user_id }}">
-          <button type="submit">刷新平台内容</button>
+          <button type="submit">恢复默认平台数据</button>
         </form>
       </aside>
 

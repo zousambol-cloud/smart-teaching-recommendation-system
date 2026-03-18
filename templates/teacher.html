@@ -1,31 +1,40 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}教师端{% endblock %}
 {% block content %}
 <section class="page-head">
   <p class="eyebrow">Teacher Portal</p>
   <h2>教师端</h2>
-  <p>教师端聚焦课程提交率、待批改文件和通知发布能力。</p>
 </section>
+
 <section class="panel-grid">
   <article class="panel">
     <h3>授课课程</h3>
     <div class="card-list">
       {% for course in data.courses %}
         <div class="list-card">
-          <h4>{{ course.title }}</h4>
-          <p>课程提交率：{{ course.submission_rate }}%</p>
+          <div class="panel-head">
+            <h4>{{ course.title }}</h4>
+            <span>提交率 {{ course.submission_rate }}%</span>
+          </div>
+          <p>{{ course.category }}</p>
+          <a href="{{ url_for('courses', user_id=user_id, course_id=course.id) }}">进入课程</a>
         </div>
       {% endfor %}
     </div>
   </article>
+
   <article class="panel">
     <h3>最新提交</h3>
     <div class="card-list">
       {% for item in data.submissions %}
-        <div class="list-card">
-          <h4>{{ item.student_name }} · {{ item.assignment_title }}</h4>
+        <a class="list-card card-link" href="{{ item.grading_link }}#submission-{{ item.id }}">
+          <div class="panel-head">
+            <h4>{{ item.student_name }} / {{ item.assignment_title }}</h4>
+            <span>{% if item.score is none %}待批改{% else %}已批改{% endif %}</span>
+          </div>
           <p>{{ item.course_title }}</p>
-        </div>
+          <p>{{ item.submitted_at }}</p>
+        </a>
       {% endfor %}
     </div>
   </article>

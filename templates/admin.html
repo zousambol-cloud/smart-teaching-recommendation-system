@@ -1,10 +1,9 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}管理端{% endblock %}
 {% block content %}
 <section class="page-head">
   <p class="eyebrow">Admin Portal</p>
   <h2>管理端</h2>
-  <p>这里不再只是概览，而是直接管理学生、教师、课程、学习资源和选课名单。</p>
 </section>
 
 <section class="metric-grid">
@@ -13,173 +12,184 @@
   <article class="metric-card"><span>提交总数</span><strong>{{ data.site_submissions }}</strong></article>
 </section>
 
-<section class="panel-grid">
+<section class="panel-grid admin-grid">
   <article class="panel">
-    <h3>新增用户</h3>
+    <h3>学生管理</h3>
     <form method="post" action="{{ url_for('admin_create_user') }}">
       <input type="hidden" name="user_id" value="{{ user_id }}">
-      <input type="text" name="name" placeholder="姓名" required>
-      <select name="role">
-        <option value="student">学生</option>
-        <option value="teacher">教师</option>
-        <option value="admin">管理员</option>
-      </select>
-      <input type="text" name="major" placeholder="专业/部门" required>
+      <input type="hidden" name="role" value="student">
+      <input type="text" name="name" placeholder="学生姓名" required>
+      <input type="text" name="major" placeholder="专业" required>
       <input type="text" name="interests" placeholder="兴趣标签，逗号分隔" required>
-      <textarea name="bio" rows="3" placeholder="简介" required></textarea>
-      <button type="submit">新增用户</button>
+      <textarea name="bio" rows="2" placeholder="简介" required></textarea>
+      <button type="submit">新增学生</button>
     </form>
+    <div class="card-list">
+      {% for item in manage.students["items"] %}
+        <form class="list-card" method="post" action="{{ url_for('admin_update_user', user_id=item.id) }}">
+          <input type="hidden" name="user_id" value="{{ user_id }}">
+          <input type="hidden" name="role" value="student">
+          <input type="text" name="name" value="{{ item.name }}" required>
+          <input type="text" name="major" value="{{ item.major }}" required>
+          <input type="text" name="interests" value="{{ item.interests }}" required>
+          <textarea name="bio" rows="2" required>{{ item.bio }}</textarea>
+          <div class="action-row">
+            <button type="submit">保存</button>
+            <button formaction="{{ url_for('admin_delete_user', user_id=item.id) }}" formmethod="post">删除</button>
+          </div>
+        </form>
+      {% endfor %}
+    <div class="pager-row"><a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"] - 1 if manage.students["page"] > 1 else 1, teacher_page=manage.teachers["page"], course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"]) }}">上一页</a> 第 {{ manage.students["page"] }} / {{ manage.students["total_pages"] }} 页 <a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"] + 1 if manage.students["page"] < manage.students["total_pages"] else manage.students["total_pages"], teacher_page=manage.teachers["page"], course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"]) }}">下一页</a></div>
   </article>
 
   <article class="panel">
-    <h3>新增课程</h3>
+    <h3>教师管理</h3>
+    <form method="post" action="{{ url_for('admin_create_user') }}">
+      <input type="hidden" name="user_id" value="{{ user_id }}">
+      <input type="hidden" name="role" value="teacher">
+      <input type="text" name="name" placeholder="教师姓名" required>
+      <input type="text" name="major" placeholder="学院/部门" required>
+      <input type="text" name="interests" placeholder="研究方向，逗号分隔" required>
+      <textarea name="bio" rows="2" placeholder="简介" required></textarea>
+      <button type="submit">新增教师</button>
+    </form>
+    <div class="card-list">
+      {% for item in manage.teachers["items"] %}
+        <form class="list-card" method="post" action="{{ url_for('admin_update_user', user_id=item.id) }}">
+          <input type="hidden" name="user_id" value="{{ user_id }}">
+          <input type="hidden" name="role" value="teacher">
+          <input type="text" name="name" value="{{ item.name }}" required>
+          <input type="text" name="major" value="{{ item.major }}" required>
+          <input type="text" name="interests" value="{{ item.interests }}" required>
+          <textarea name="bio" rows="2" required>{{ item.bio }}</textarea>
+          <div class="action-row">
+            <button type="submit">保存</button>
+            <button formaction="{{ url_for('admin_delete_user', user_id=item.id) }}" formmethod="post">删除</button>
+          </div>
+        </form>
+      {% endfor %}
+    <div class="pager-row"><a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"] - 1 if manage.teachers["page"] > 1 else 1, course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"]) }}">上一页</a> 第 {{ manage.teachers["page"] }} / {{ manage.teachers["total_pages"] }} 页 <a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"] + 1 if manage.teachers["page"] < manage.teachers["total_pages"] else manage.teachers["total_pages"], course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"]) }}">下一页</a></div>
+  </article>
+</section>
+
+<section class="panel-grid admin-grid">
+  <article class="panel">
+    <h3>课程管理</h3>
     <form method="post" action="{{ url_for('admin_create_course') }}">
       <input type="hidden" name="user_id" value="{{ user_id }}">
-      <input type="text" name="title" placeholder="课程名" required>
-      <input type="text" name="category" placeholder="分类" required>
+      <input type="text" name="title" placeholder="课程名称" required>
+      <input type="text" name="category" placeholder="课程分类" required>
       <select name="teacher_id">
-        {% for teacher in manage.teachers %}
+        {% for teacher in manage.teachers_all %}
           <option value="{{ teacher.id }}">{{ teacher.name }}</option>
         {% endfor %}
       </select>
       <input type="text" name="tags" placeholder="标签，逗号分隔" required>
-      <textarea name="description" rows="3" placeholder="课程描述" required></textarea>
+      <textarea name="description" rows="2" placeholder="课程简介" required></textarea>
       <button type="submit">新增课程</button>
     </form>
+    <div class="card-list">
+      {% for item in manage.courses["items"] %}
+        <form class="list-card" method="post" action="{{ url_for('admin_update_course', course_id=item.id) }}">
+          <input type="hidden" name="user_id" value="{{ user_id }}">
+          <input type="text" name="title" value="{{ item.title }}" required>
+          <input type="text" name="category" value="{{ item.category }}" required>
+          <select name="teacher_id">
+            {% for teacher in manage.teachers_all %}
+              <option value="{{ teacher.id }}" {% if teacher.id == item.teacher_id %}selected{% endif %}>{{ teacher.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="tags" value="{{ item.tags }}" required>
+          <textarea name="description" rows="2" required>{{ item.description }}</textarea>
+          <div class="action-row">
+            <button type="submit">保存</button>
+            <button formaction="{{ url_for('admin_delete_course', course_id=item.id) }}" formmethod="post">删除</button>
+          </div>
+        </form>
+      {% endfor %}
+    </div>
+    <div class="pager-row"><a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"], course_page=manage.courses["page"] - 1 if manage.courses["page"] > 1 else 1, enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"]) }}">上一页</a> 第 {{ manage.courses["page"] }} / {{ manage.courses["total_pages"] }} 页 <a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"], course_page=manage.courses["page"] + 1 if manage.courses["page"] < manage.courses["total_pages"] else manage.courses["total_pages"], enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"]) }}">下一页</a></div>
   </article>
 
   <article class="panel">
-    <h3>新增资源</h3>
-    <form method="post" action="{{ url_for('admin_create_resource') }}">
-      <input type="hidden" name="user_id" value="{{ user_id }}">
-      <select name="course_id">
-        {% for course in manage.courses %}
-          <option value="{{ course.id }}">{{ course.title }}</option>
-        {% endfor %}
-      </select>
-      <input type="text" name="title" placeholder="资源标题" required>
-      <input type="text" name="resource_type" placeholder="类型，如文档/视频" required>
-      <input type="text" name="tags" placeholder="标签，逗号分隔" required>
-      <input type="url" name="url" placeholder="资源链接" required>
-      <textarea name="summary" rows="3" placeholder="资源简介" required></textarea>
-      <button type="submit">新增资源</button>
-    </form>
-  </article>
-
-  <article class="panel">
-    <h3>新增选课关系</h3>
+    <h3>选课管理</h3>
     <form method="post" action="{{ url_for('admin_create_enrollment') }}">
       <input type="hidden" name="user_id" value="{{ user_id }}">
       <select name="student_id">
-        {% for student in manage.students %}
+        {% for student in manage.students_all %}
           <option value="{{ student.id }}">{{ student.name }}</option>
         {% endfor %}
       </select>
       <select name="course_id">
-        {% for course in manage.courses %}
+        {% for course in manage.courses_all %}
           <option value="{{ course.id }}">{{ course.title }}</option>
         {% endfor %}
       </select>
       <button type="submit">新增选课</button>
     </form>
+    <div class="card-list">
+      {% for item in manage.enrollments["items"] %}
+        <form class="list-card" method="post" action="{{ url_for('admin_delete_enrollment', enrollment_id=item.id) }}">
+          <input type="hidden" name="user_id" value="{{ user_id }}">
+          <h4>{{ item.student_name }}</h4>
+          <p>{{ item.course_title }}</p>
+          <button type="submit">删除选课</button>
+        </form>
+      {% endfor %}
+    </div>
+    <div class="pager-row"><a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"], course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"] - 1 if manage.enrollments["page"] > 1 else 1, resource_page=manage.resources["page"]) }}">上一页</a> 第 {{ manage.enrollments["page"] }} / {{ manage.enrollments["total_pages"] }} 页 <a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"], course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"] + 1 if manage.enrollments["page"] < manage.enrollments["total_pages"] else manage.enrollments["total_pages"], resource_page=manage.resources["page"]) }}">下一页</a></div>
   </article>
 </section>
 
-<section class="panel">
-  <h3>用户管理</h3>
-  <div class="card-list">
-    {% for item in manage.users %}
-      <form class="list-card" method="post" action="{{ url_for('admin_update_user', user_id=item.id) }}">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <input type="text" name="name" value="{{ item.name }}" required>
-        <select name="role">
-          <option value="student" {% if item.role == 'student' %}selected{% endif %}>学生</option>
-          <option value="teacher" {% if item.role == 'teacher' %}selected{% endif %}>教师</option>
-          <option value="admin" {% if item.role == 'admin' %}selected{% endif %}>管理员</option>
-        </select>
-        <input type="text" name="major" value="{{ item.major }}" required>
-        <input type="text" name="interests" value="{{ item.interests }}" required>
-        <textarea name="bio" rows="2" required>{{ item.bio }}</textarea>
-        <div class="action-row">
-          <button type="submit">保存</button>
-        </div>
-      </form>
-      <form method="post" action="{{ url_for('admin_delete_user', user_id=item.id) }}">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <button type="submit">删除 {{ item.name }}</button>
-      </form>
-    {% endfor %}
-  </div>
-</section>
+<article class="panel">
+  <h3>资源中心</h3>
+  <form method="post" action="{{ url_for('admin_create_resource') }}" enctype="multipart/form-data">
+    <input type="hidden" name="user_id" value="{{ user_id }}">
+    <select name="course_id">
+      {% for course in manage.courses_all %}
+        <option value="{{ course.id }}">{{ course.title }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="title" placeholder="资源标题" required>
+    <select name="resource_type">
+      {% for item in resource_types %}
+        <option value="{{ item }}">{{ item }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="tags" placeholder="标签，逗号分隔" required>
+    <input type="url" name="url" placeholder="资源链接，可选">
+    <input type="file" name="resource_file">
+    <textarea name="summary" rows="3" placeholder="资源简介" required></textarea>
+    <button type="submit">新增资源</button>
+  </form>
 
-<section class="panel">
-  <h3>课程管理</h3>
-  <div class="card-list">
-    {% for item in manage.courses %}
-      <form class="list-card" method="post" action="{{ url_for('admin_update_course', course_id=item.id) }}">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <input type="text" name="title" value="{{ item.title }}" required>
-        <input type="text" name="category" value="{{ item.category }}" required>
-        <select name="teacher_id">
-          {% for teacher in manage.teachers %}
-            <option value="{{ teacher.id }}" {% if teacher.id == item.teacher_id %}selected{% endif %}>{{ teacher.name }}</option>
-          {% endfor %}
-        </select>
-        <input type="text" name="tags" value="{{ item.tags }}" required>
-        <textarea name="description" rows="2" required>{{ item.description }}</textarea>
-        <div class="action-row">
-          <button type="submit">保存</button>
-        </div>
-      </form>
-      <form method="post" action="{{ url_for('admin_delete_course', course_id=item.id) }}">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <button type="submit">删除 {{ item.title }}</button>
-      </form>
-    {% endfor %}
-  </div>
-</section>
-
-<section class="panel">
-  <h3>资源管理</h3>
-  <div class="card-list">
-    {% for item in manage.resources %}
-      <form class="list-card" method="post" action="{{ url_for('admin_update_resource', resource_id=item.id) }}">
+  <div class="card-grid compact-grid">
+    {% for item in manage.resources["items"] %}
+      <form class="list-card" method="post" action="{{ url_for('admin_update_resource', resource_id=item.id) }}" enctype="multipart/form-data">
         <input type="hidden" name="user_id" value="{{ user_id }}">
         <select name="course_id">
-          {% for course in manage.courses %}
+          {% for course in manage.courses_all %}
             <option value="{{ course.id }}" {% if course.id == item.course_id %}selected{% endif %}>{{ course.title }}</option>
           {% endfor %}
         </select>
         <input type="text" name="title" value="{{ item.title }}" required>
-        <input type="text" name="resource_type" value="{{ item.resource_type }}" required>
+        <select name="resource_type">
+          {% for type in resource_types %}
+            <option value="{{ type }}" {% if type == item.resource_type %}selected{% endif %}>{{ type }}</option>
+          {% endfor %}
+        </select>
         <input type="text" name="tags" value="{{ item.tags }}" required>
-        <input type="url" name="url" value="{{ item.url }}" required>
-        <textarea name="summary" rows="2" required>{{ item.summary }}</textarea>
+        <input type="url" name="url" value="{{ item.url }}" placeholder="资源链接，可选">
+        <input type="file" name="resource_file">
+        <textarea name="summary" rows="3" required>{{ item.summary }}</textarea>
+        <p>评分 {{ item.avg_rating }} / {{ item.rating_count }} 人，浏览 {{ item.views }}，收藏 {{ item.favorites }}</p>
         <div class="action-row">
           <button type="submit">保存</button>
+          <button formaction="{{ url_for('admin_delete_resource', resource_id=item.id) }}" formmethod="post">删除</button>
         </div>
       </form>
-      <form method="post" action="{{ url_for('admin_delete_resource', resource_id=item.id) }}">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <button type="submit">删除 {{ item.title }}</button>
-      </form>
     {% endfor %}
   </div>
-</section>
-
-<section class="panel">
-  <h3>选课名单管理</h3>
-  <div class="card-list">
-    {% for item in manage.enrollments %}
-      <div class="list-card">
-        <h4>{{ item.student_name }}</h4>
-        <p>{{ item.course_title }}</p>
-      </div>
-      <form method="post" action="{{ url_for('admin_delete_enrollment', enrollment_id=item.id) }}">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <button type="submit">删除该选课关系</button>
-      </form>
-    {% endfor %}
-  </div>
-</section>
+  <div class="pager-row"><a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"], course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"] - 1 if manage.resources["page"] > 1 else 1) }}">上一页</a> 第 {{ manage.resources["page"] }} / {{ manage.resources["total_pages"] }} 页 <a href="{{ url_for('admin_portal', user_id=user_id, student_page=manage.students["page"], teacher_page=manage.teachers["page"], course_page=manage.courses["page"], enrollment_page=manage.enrollments["page"], resource_page=manage.resources["page"] + 1 if manage.resources["page"] < manage.resources["total_pages"] else manage.resources["total_pages"]) }}">下一页</a></div>
+</article>
 {% endblock %}

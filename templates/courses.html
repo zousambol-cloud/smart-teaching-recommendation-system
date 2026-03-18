@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}课程中心{% endblock %}
 {% block content %}
 <section class="page-head">
@@ -6,36 +6,28 @@
   <h2>课程中心</h2>
 </section>
 
-<section class="card-grid">
+<section class="card-grid course-grid-wide">
   {% for course in courses %}
-    <article class="panel">
+    <article class="panel" id="course-{{ course.id }}">
       <div class="panel-head">
         <div>
           <h3>{{ course.title }}</h3>
           <p>{{ course.category }} / {{ course.teacher_name }}</p>
         </div>
-        {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or current_user.id == course.teacher_id) %}
+        {% if current_user.role == 'teacher' and current_user.id == course.teacher_id %}
           <div class="toolbar-buttons">
             <button type="button" onclick="document.getElementById('course-resource-create-{{ course.id }}').showModal()">新增应学资源</button>
             <button type="button" onclick="document.getElementById('course-assignment-create-{{ course.id }}').showModal()">发布作业</button>
+            <button type="button" onclick="document.getElementById('course-quiz-create-{{ course.id }}').showModal()">发布测试</button>
           </div>
         {% endif %}
       </div>
       <p>{{ course.description }}</p>
-      <p>选课人数：{{ course.students }}</p>
-
       {% if current_user.role == 'student' %}
-        {% if course.is_enrolled %}
-          <p>我的课程进度：{{ course.progress }}%</p>
-        {% else %}
-          <p>当前状态：未选课</p>
-          <form method="post" action="{{ url_for('enroll_course', course_id=course.id) }}" class="stack-form">
-            <input type="hidden" name="user_id" value="{{ user_id }}">
-            <button type="submit">立即选课</button>
-          </form>
-        {% endif %}
+        <p>课程进度：{{ course.progress }}%</p>
+        <p>作业提交率：{{ course.submission_rate }}%</p>
       {% else %}
-        <p>课程作业提交率：{{ course.submission_rate }}%</p>
+        <p>课程整体作业提交率：{{ course.submission_rate }}%</p>
       {% endif %}
 
       <section class="course-resource-block">
@@ -45,36 +37,37 @@
         </div>
         <div class="course-resource-list">
           {% for resource in course.resources %}
-            <button type="button" class="resource-pill {% if resource.completed %}resource-pill-done{% endif %}" onclick="document.getElementById('course-resource-dialog-{{ course.id }}-{{ resource.id }}').showModal()">
-              {{ resource.title }}
-            </button>
+            <button type="button" class="resource-pill {% if resource.completed %}resource-pill-done{% endif %}" onclick="document.getElementById('course-resource-dialog-{{ course.id }}-{{ resource.id }}').showModal()">{{ resource.title }}</button>
             <dialog id="course-resource-dialog-{{ course.id }}-{{ resource.id }}" class="resource-dialog">
               <article class="dialog-card">
                 <div class="panel-head">
                   <h3>{{ resource.title }}</h3>
                   <button type="button" class="ghost-button" onclick="document.getElementById('course-resource-dialog-{{ course.id }}-{{ resource.id }}').close()">关闭</button>
                 </div>
-                <p>{{ course.title }} / {{ resource.resource_type }}</p>
+                <p>{{ resource.resource_type }} / {{ course.title }}</p>
                 <p>{{ resource.summary }}</p>
                 <div class="tag-row">
                   {% for tag in resource.tags %}
                     <span>{{ tag }}</span>
                   {% endfor %}
                 </div>
-                {% if current_user.role == 'student' %}
-                  <p>{% if resource.completed %}你已对该资源产生学习行为，已计入当前课程进度。{% else %}打开资源、下载导读、收藏或评分后，该资源才会计入课程进度。{% endif %}</p>
-                {% endif %}
+                <p>浏览 {{ resource.views }} / 收藏 {{ resource.favorites }} / 下载 {{ resource.downloads }} / 平均评分 {{ resource.avg_rating }}</p>
                 <div class="action-row">
-                  <a href="{{ url_for('open_resource', resource_id=resource.id, user_id=user_id) }}" target="_blank" rel="noopener">打开原始资源</a>
-                  <a href="{{ url_for('resources', user_id=user_id) }}">去资源中心查看评价</a>
+                  <a href="{{ url_for('open_resource', resource_id=resource.id, user_id=user_id) }}" target="_blank" rel="noopener">打开资源</a>
+                  <a href="{{ url_for('download_resource', resource_id=resource.id, user_id=user_id) }}">下载资源</a>
                 </div>
-                {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or current_user.id == course.teacher_id) %}
-                  <form method="post" action="{{ url_for('update_course_resource', course_id=course.id, resource_id=resource.id) }}">
+                {% if current_user.role == 'teacher' and current_user.id == course.teacher_id %}
+                  <form method="post" action="{{ url_for('update_course_resource', course_id=course.id, resource_id=resource.id) }}" enctype="multipart/form-data">
                     <input type="hidden" name="user_id" value="{{ user_id }}">
                     <input type="text" name="title" value="{{ resource.title }}" required>
-                    <input type="text" name="resource_type" value="{{ resource.resource_type }}" required>
+                    <select name="resource_type">
+                      {% for type in resource_types %}
+                        <option value="{{ type }}" {% if type == resource.resource_type %}selected{% endif %}>{{ type }}</option>
+                      {% endfor %}
+                    </select>
                     <input type="text" name="tags" value="{{ resource.tags|join(',') }}" required>
-                    <input type="url" name="url" value="{{ resource.url }}" required>
+                    <input type="url" name="url" value="{{ resource.url }}" placeholder="资源链接，可选">
+                    <input type="file" name="resource_file">
                     <textarea name="summary" rows="3" required>{{ resource.summary }}</textarea>
                     <button type="submit">更新资源</button>
                   </form>
@@ -85,22 +78,21 @@
         </div>
       </section>
 
-      {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or current_user.id == course.teacher_id) %}
-        <section class="course-assignment-block">
-          <div class="panel-head">
-            <h4>课程作业</h4>
-            <span>{{ course.assignments|length }} 项</span>
-          </div>
-          <div class="assignment-grid">
-            {% for assignment in course.assignments %}
-              <article class="list-card">
-                <h4>{{ assignment.title }}</h4>
-                <p>截止：{{ assignment.due_date }} / 满分：{{ assignment.max_score }}</p>
-                <p>{{ assignment.description }}</p>
-                <div class="panel-head">
-                  <strong>未交名单</strong>
-                  <span>{{ assignment.pending_count }} 人</span>
-                </div>
+      <section class="course-assignment-block">
+        <div class="panel-head">
+          <h4>课程作业</h4>
+          <span>{{ course.assignments|length }} 项</span>
+        </div>
+        <div class="assignment-grid">
+          {% for assignment in course.assignments %}
+            <article class="list-card">
+              <div class="panel-head">
+                <strong>{{ assignment.title }}</strong>
+                <span>{{ assignment.due_date }}</span>
+              </div>
+              <p>{{ assignment.description }}</p>
+              {% if current_user.role == 'teacher' and current_user.id == course.teacher_id %}
+                <p>未交人数：{{ assignment.pending_count }}</p>
                 {% if assignment.pending_students %}
                   <div class="pending-scroll">
                     <div class="pending-list">
@@ -111,52 +103,184 @@
                   </div>
                   <form method="post" action="{{ url_for('remind_assignment_pending_students', assignment_id=assignment.id) }}">
                     <input type="hidden" name="user_id" value="{{ user_id }}">
-                    <button type="submit">一键催交未提交学生</button>
+                    <button type="submit">一键催交</button>
                   </form>
-                {% else %}
-                  <p class="muted-note">当前没有未提交学生。</p>
                 {% endif %}
-              </article>
-            {% endfor %}
-          </div>
-        </section>
+              {% else %}
+                <a href="{{ url_for('assignments', user_id=user_id, assignment_id=assignment.id) }}">前往作业</a>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </section>
 
-        <dialog id="course-resource-create-{{ course.id }}" class="resource-dialog">
-          <article class="dialog-card">
-            <div class="panel-head">
-              <h3>新增应学资源</h3>
-              <button type="button" class="ghost-button" onclick="document.getElementById('course-resource-create-{{ course.id }}').close()">关闭</button>
-            </div>
-            <form method="post" action="{{ url_for('create_course_resource', course_id=course.id) }}">
-              <input type="hidden" name="user_id" value="{{ user_id }}">
-              <input type="text" name="title" placeholder="资源标题" required>
-              <input type="text" name="resource_type" placeholder="资源类型，如文档/视频/案例" required>
-              <input type="text" name="tags" placeholder="标签，逗号分隔" required>
-              <input type="url" name="url" placeholder="资源链接" required>
-              <textarea name="summary" rows="4" placeholder="资源内容说明" required></textarea>
-              <button type="submit">保存资源</button>
-            </form>
-          </article>
-        </dialog>
+      <section class="panel nested-panel">
+        <div class="panel-head">
+          <h4>课程留言板</h4>
+          <span>{{ course.messages|length }} 条主题</span>
+        </div>
+        {% if current_user.role == 'student' %}
+          <form method="post" action="{{ url_for('create_course_message', course_id=course.id) }}">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <textarea name="content" rows="3" placeholder="输入你的问题，教师会公开回复" required></textarea>
+            <button type="submit">发布问题</button>
+          </form>
+        {% endif %}
+        <div class="card-list">
+          {% for message in course.messages %}
+            <article class="comment-card">
+              <div class="panel-head">
+                <strong>{{ message.author_name }}</strong>
+                <span>{{ message.created_at }}</span>
+              </div>
+              <p>{{ message.content }}</p>
+              {% if message.replies %}
+                <div class="reply-list">
+                  {% for reply in message.replies %}
+                    <article class="reply-card">
+                      <div class="panel-head">
+                        <strong>{{ reply.author_name }}</strong>
+                        <span>{{ reply.created_at }}</span>
+                      </div>
+                      <p>{{ reply.content }}</p>
+                    </article>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if current_user.role == 'teacher' and current_user.id == course.teacher_id %}
+                <form method="post" action="{{ url_for('reply_course_message', course_id=course.id, message_id=message.id) }}">
+                  <input type="hidden" name="user_id" value="{{ user_id }}">
+                  <textarea name="content" rows="2" placeholder="公开回复" required></textarea>
+                  <button type="submit">回复</button>
+                </form>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </section>
 
-        <dialog id="course-assignment-create-{{ course.id }}" class="resource-dialog">
-          <article class="dialog-card">
-            <div class="panel-head">
-              <h3>发布课程作业</h3>
-              <button type="button" class="ghost-button" onclick="document.getElementById('course-assignment-create-{{ course.id }}').close()">关闭</button>
-            </div>
-            <form method="post" action="{{ url_for('create_course_assignment', course_id=course.id) }}">
-              <input type="hidden" name="user_id" value="{{ user_id }}">
-              <input type="text" name="title" placeholder="作业标题" required>
-              <textarea name="description" rows="4" placeholder="作业要求" required></textarea>
-              <input type="date" name="due_date" required>
-              <input type="number" name="max_score" min="1" value="100" required>
-              <button type="submit">发布作业</button>
-            </form>
-          </article>
-        </dialog>
-      {% endif %}
+      <section class="panel nested-panel">
+        <div class="panel-head">
+          <h4>在线测试</h4>
+          <span>{{ course.quizzes|length }} 套</span>
+        </div>
+        <div class="card-list">
+          {% for quiz in course.quizzes %}
+            <article class="list-card">
+              <div class="panel-head">
+                <div>
+                  <h4>{{ quiz.title }}</h4>
+                  <p>{{ quiz.description }}</p>
+                </div>
+                <span>{{ quiz.question_count }} 题</span>
+              </div>
+              {% if current_user.role == 'student' %}
+                {% if quiz.my_attempt %}
+                  <p>最近成绩：{{ quiz.my_attempt.score }}</p>
+                {% endif %}
+                <form method="post" action="{{ url_for('submit_quiz', quiz_id=quiz.id) }}">
+                  <input type="hidden" name="user_id" value="{{ user_id }}">
+                  {% for question in quiz.questions %}
+                    <div class="quiz-question">
+                      <p><strong>{{ loop.index }}. {{ question.question_text }}</strong></p>
+                      <label><input type="radio" name="question_{{ question.id }}" value="A"> A. {{ question.option_a }}</label>
+                      <label><input type="radio" name="question_{{ question.id }}" value="B"> B. {{ question.option_b }}</label>
+                      <label><input type="radio" name="question_{{ question.id }}" value="C"> C. {{ question.option_c }}</label>
+                      <label><input type="radio" name="question_{{ question.id }}" value="D"> D. {{ question.option_d }}</label>
+                    </div>
+                  {% endfor %}
+                  <button type="submit">提交测试</button>
+                </form>
+              {% else %}
+                <div class="card-list compact-list">
+                  {% for item in quiz.completion %}
+                    <div class="list-card {% if item.completed and item.score < 60 %}danger-card{% endif %}">
+                      <div class="panel-head">
+                        <strong>{{ item.student_name }}</strong>
+                        <span>{% if item.completed %}{{ item.score }}{% else %}未完成{% endif %}</span>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </section>
     </article>
+
+    {% if current_user.role == 'teacher' and current_user.id == course.teacher_id %}
+      <dialog id="course-resource-create-{{ course.id }}" class="resource-dialog">
+        <article class="dialog-card">
+          <div class="panel-head">
+            <h3>新增应学资源</h3>
+            <button type="button" class="ghost-button" onclick="document.getElementById('course-resource-create-{{ course.id }}').close()">关闭</button>
+          </div>
+          <form method="post" action="{{ url_for('create_course_resource', course_id=course.id) }}" enctype="multipart/form-data">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <input type="text" name="title" placeholder="资源标题" required>
+            <select name="resource_type">
+              {% for item in resource_types %}
+                <option value="{{ item }}">{{ item }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" name="tags" placeholder="标签，逗号分隔" required>
+            <input type="url" name="url" placeholder="资源链接，可选">
+            <input type="file" name="resource_file">
+            <textarea name="summary" rows="3" placeholder="资源简介" required></textarea>
+            <button type="submit">保存资源</button>
+          </form>
+        </article>
+      </dialog>
+
+      <dialog id="course-assignment-create-{{ course.id }}" class="resource-dialog">
+        <article class="dialog-card">
+          <div class="panel-head">
+            <h3>发布作业</h3>
+            <button type="button" class="ghost-button" onclick="document.getElementById('course-assignment-create-{{ course.id }}').close()">关闭</button>
+          </div>
+          <form method="post" action="{{ url_for('create_course_assignment', course_id=course.id) }}">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <input type="text" name="title" placeholder="作业标题" required>
+            <textarea name="description" rows="4" placeholder="作业要求" required></textarea>
+            <input type="date" name="due_date" required>
+            <input type="number" name="max_score" min="1" value="100" required>
+            <button type="submit">发布作业</button>
+          </form>
+        </article>
+      </dialog>
+
+      <dialog id="course-quiz-create-{{ course.id }}" class="resource-dialog">
+        <article class="dialog-card">
+          <div class="panel-head">
+            <h3>发布在线测试</h3>
+            <button type="button" class="ghost-button" onclick="document.getElementById('course-quiz-create-{{ course.id }}').close()">关闭</button>
+          </div>
+          <form method="post" action="{{ url_for('create_quiz', course_id=course.id) }}">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <input type="text" name="title" placeholder="测试标题" required>
+            <textarea name="description" rows="3" placeholder="测试说明" required></textarea>
+            {% for idx in range(1, 6) %}
+              <div class="quiz-builder">
+                <input type="text" name="question_text_{{ idx }}" placeholder="第 {{ idx }} 题题干">
+                <input type="text" name="option_a_{{ idx }}" placeholder="A 选项">
+                <input type="text" name="option_b_{{ idx }}" placeholder="B 选项">
+                <input type="text" name="option_c_{{ idx }}" placeholder="C 选项">
+                <input type="text" name="option_d_{{ idx }}" placeholder="D 选项">
+                <select name="correct_option_{{ idx }}">
+                  <option value="A">正确答案 A</option>
+                  <option value="B">正确答案 B</option>
+                  <option value="C">正确答案 C</option>
+                  <option value="D">正确答案 D</option>
+                </select>
+                <input type="text" name="explanation_{{ idx }}" placeholder="答案解析，可选">
+              </div>
+            {% endfor %}
+            <button type="submit">发布测试</button>
+          </form>
+        </article>
+      </dialog>
+    {% endif %}
   {% endfor %}
 </section>
 {% endblock %}

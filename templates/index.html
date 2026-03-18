@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}系统总览{% endblock %}
 {% block content %}
 <section class="hero">
@@ -15,46 +15,30 @@
 </section>
 
 <section class="metric-grid">
-  <article class="metric-card">
-    <span>课程数</span>
-    <strong>{{ metrics.course_count }}</strong>
-  </article>
-  <article class="metric-card">
-    <span>资源数</span>
-    <strong>{{ metrics.resource_count }}</strong>
-  </article>
-  <article class="metric-card">
-    <span>{% if current_user.role == 'student' %}待提交作业{% else %}待批改作业{% endif %}</span>
-    <strong>{{ metrics.pending_assignments }}</strong>
-  </article>
-  <article class="metric-card">
-    <span>全站资源平均评分</span>
-    <strong>{{ metrics.resource_average_rating }}</strong>
-  </article>
-  <article class="metric-card">
-    <span>已批改平均分</span>
-    <strong>{{ metrics.average_score }}</strong>
-  </article>
-  <article class="metric-card">
-    <span>通知数</span>
-    <strong>{{ metrics.announcement_count }}</strong>
-  </article>
+  <article class="metric-card"><span>课程数</span><strong>{{ metrics.course_count }}</strong></article>
+  <article class="metric-card"><span>资源数</span><strong>{{ metrics.resource_count }}</strong></article>
+  <article class="metric-card"><span>{% if current_user.role == 'student' %}待提交作业{% else %}待批改作业{% endif %}</span><strong>{{ metrics.pending_assignments }}</strong></article>
+  <article class="metric-card"><span>全站资源平均评分</span><strong>{{ metrics.resource_average_rating }}</strong></article>
+  <article class="metric-card"><span>已批改平均分</span><strong>{{ metrics.average_score }}</strong></article>
+  <article class="metric-card"><span>通知数</span><strong>{{ metrics.announcement_count }}</strong></article>
 </section>
 
 <section class="panel-grid">
   {% if current_user.role == 'student' %}
     <article class="panel">
       <div class="panel-head">
-        <h3>学生端快捷入口</h3>
+        <h3>我的课程</h3>
         <a href="{{ url_for('student_portal', user_id=user_id) }}">进入学生端</a>
       </div>
       <div class="card-list">
         {% for course in student_data.courses %}
-          <div class="list-card">
-            <h4>{{ course.title }}</h4>
-            <p>课程进度：{{ course.progress }}%</p>
-            <p>作业提交率：{{ course.submission_rate }}%</p>
-          </div>
+          <a class="list-card card-link" href="{{ course.progress_link }}">
+            <div class="panel-head">
+              <h4>{{ course.title }}</h4>
+              <span>{{ course.progress }}%</span>
+            </div>
+            <p>作业提交率 {{ course.submission_rate }}%</p>
+          </a>
         {% endfor %}
       </div>
     </article>
@@ -75,36 +59,36 @@
   {% elif current_user.role == 'teacher' %}
     <article class="panel">
       <div class="panel-head">
-        <h3>教师端快捷入口</h3>
+        <h3>授课课程</h3>
         <a href="{{ url_for('teacher_portal', user_id=user_id) }}">进入教师端</a>
       </div>
       <div class="card-list">
         {% for course in teacher_data.courses %}
-          <div class="list-card">
+          <a class="list-card card-link" href="{{ url_for('courses', user_id=user_id, course_id=course.id) }}">
             <h4>{{ course.title }}</h4>
-            <p>课程提交率：{{ course.submission_rate }}%</p>
-          </div>
+            <p>提交率 {{ course.submission_rate }}%</p>
+          </a>
         {% endfor %}
       </div>
     </article>
     <article class="panel">
       <div class="panel-head">
-        <h3>最近提交</h3>
-        <a href="{{ url_for('assignments', user_id=user_id) }}">去批改</a>
+        <h3>最新提交</h3>
+        <a href="{{ url_for('assignments', user_id=user_id) }}">进入批改中心</a>
       </div>
       <div class="card-list">
         {% for item in teacher_data.submissions %}
-          <div class="list-card">
+          <a class="list-card card-link" href="{{ item.grading_link }}#submission-{{ item.id }}">
             <h4>{{ item.student_name }} / {{ item.assignment_title }}</h4>
             <p>{{ item.course_title }}</p>
-          </div>
+          </a>
         {% endfor %}
       </div>
     </article>
   {% else %}
     <article class="panel">
       <div class="panel-head">
-        <h3>管理端快捷入口</h3>
+        <h3>管理入口</h3>
         <a href="{{ url_for('admin_portal', user_id=user_id) }}">进入管理端</a>
       </div>
       <div class="card-list">

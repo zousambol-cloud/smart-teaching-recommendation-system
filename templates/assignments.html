@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}作业中心{% endblock %}
 {% block content %}
 <section class="page-head">
@@ -6,19 +6,21 @@
   <h2>作业中心</h2>
 </section>
 
-{% if student_assignments %}
+{% if student_assignments is not none %}
   <section class="card-grid">
     {% for item in student_assignments %}
-      <article class="panel">
-        <h3>{{ item.title }}</h3>
-        <p>{{ item.course_title }} · 截止 {{ item.due_date }}</p>
+      <article class="panel {% if focus_assignment_id == item.id %}focused-card{% endif %}" id="assignment-{{ item.id }}">
+        <div class="panel-head">
+          <h3>{{ item.title }}</h3>
+          <span>{{ item.status }}</span>
+        </div>
+        <p>{{ item.course_title }} / 截止 {{ item.due_date }}</p>
         <p>{{ item.description }}</p>
-        <p>状态：{{ item.status }}</p>
         {% if item.filename %}
           <p>已提交文件：{{ item.filename }}</p>
         {% endif %}
         {% if item.score is not none %}
-          <p>分数：{{ item.score }}</p>
+          <p>得分：{{ item.score }}</p>
           <p>反馈：{{ item.feedback }}</p>
         {% endif %}
         {% if item.status != '已批改' %}
@@ -48,13 +50,13 @@
       </thead>
       <tbody>
         {% for item in review_rows %}
-          <tr>
+          <tr id="submission-{{ item.id }}" class="{% if focus_submission_id == item.id %}focused-row{% endif %}">
             <td>{{ item.student_name }}</td>
             <td>{{ item.course_title }}</td>
             <td>{{ item.assignment_title }}</td>
             <td>{{ item.submitted_at }}</td>
             <td><a href="{{ url_for('download_submission', submission_id=item.id, user_id=user_id) }}">下载 {{ item.filename }}</a></td>
-            <td>{{ '已批改' if item.score is not none else '待批改' }}</td>
+            <td>{% if item.score is none %}待批改{% else %}已批改{% endif %}</td>
             <td>
               <form method="post" action="{{ url_for('grade_submission', submission_id=item.id) }}" class="inline-form">
                 <input type="hidden" name="user_id" value="{{ user_id }}">

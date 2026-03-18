@@ -15,6 +15,8 @@ from werkzeug.utils import secure_filename
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_PATH = BASE_DIR / "teaching.db"
 UPLOAD_DIR = BASE_DIR / "uploads"
+RESOURCE_UPLOAD_DIR = UPLOAD_DIR / "resources"
+RESOURCE_TYPES = ["文档", "视频", "案例", "课件", "数据集", "代码", "网站", "试题"]
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "smart-teaching-platform-secret"
@@ -51,6 +53,28 @@ def current_user_id() -> int:
         return 1
 
 
+def page_arg(name: str, default: int = 1) -> int:
+    try:
+        value = int(request.args.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(1, value)
+
+
+def paginate_rows(rows: list[Any], page: int, page_size: int = 6) -> dict[str, Any]:
+    total = len(rows)
+    total_pages = max(1, math.ceil(total / page_size))
+    page = min(page, total_pages)
+    start = (page - 1) * page_size
+    return {
+        "items": rows[start:start + page_size],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+    }
+
+
 def require_roles(*roles: str) -> sqlite3.Row:
     db = get_db()
     user = db.execute("SELECT * FROM users WHERE id = ?", (current_user_id(),)).fetchone()
@@ -61,8 +85,20 @@ def require_roles(*roles: str) -> sqlite3.Row:
     return user
 
 
+def save_resource_upload(upload: Any) -> tuple[str | None, str | None]:
+    if upload is None or not getattr(upload, "filename", ""):
+        return None, None
+    RESOURCE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = secure_filename(upload.filename)
+    stored_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+    stored_path = RESOURCE_UPLOAD_DIR / stored_name
+    upload.save(stored_path)
+    return str(stored_path.resolve()), upload.filename
+
+
 def init_db() -> None:
     UPLOAD_DIR.mkdir(exist_ok=True)
+    RESOURCE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DATABASE_PATH)
     cursor = db.cursor()
     cursor.executescript(
@@ -123,6 +159,8 @@ def init_db() -> None:
             tags TEXT NOT NULL,
             url TEXT NOT NULL,
             summary TEXT NOT NULL,
+            file_path TEXT,
+            original_filename TEXT,
             FOREIGN KEY(course_id) REFERENCES courses(id)
         );
 
@@ -130,13 +168,15 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             author_id INTEGER NOT NULL,
             recipient_id INTEGER,
+            course_id INTEGER,
             title TEXT NOT NULL,
             category TEXT NOT NULL,
             content TEXT NOT NULL,
             created_at TEXT NOT NULL,
             priority TEXT NOT NULL,
             FOREIGN KEY(author_id) REFERENCES users(id),
-            FOREIGN KEY(recipient_id) REFERENCES users(id)
+            FOREIGN KEY(recipient_id) REFERENCES users(id),
+            FOREIGN KEY(course_id) REFERENCES courses(id)
         );
 
         CREATE TABLE submissions (
@@ -179,6 +219,63 @@ def init_db() -> None:
             FOREIGN KEY(user_id) REFERENCES users(id),
             FOREIGN KEY(resource_id) REFERENCES resources(id),
             FOREIGN KEY(course_id) REFERENCES courses(id)
+        );
+
+        CREATE TABLE course_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            course_id INTEGER NOT NULL,
+            author_id INTEGER NOT NULL,
+            parent_id INTEGER,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(course_id) REFERENCES courses(id),
+            FOREIGN KEY(author_id) REFERENCES users(id),
+            FOREIGN KEY(parent_id) REFERENCES course_messages(id)
+        );
+
+        CREATE TABLE quizzes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            course_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            created_by INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(course_id) REFERENCES courses(id),
+            FOREIGN KEY(created_by) REFERENCES users(id)
+        );
+
+        CREATE TABLE quiz_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id INTEGER NOT NULL,
+            question_text TEXT NOT NULL,
+            option_a TEXT NOT NULL,
+            option_b TEXT NOT NULL,
+            option_c TEXT NOT NULL,
+            option_d TEXT NOT NULL,
+            correct_option TEXT NOT NULL,
+            explanation TEXT NOT NULL,
+            FOREIGN KEY(quiz_id) REFERENCES quizzes(id)
+        );
+
+        CREATE TABLE quiz_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id INTEGER NOT NULL,
+            student_id INTEGER NOT NULL,
+            score REAL NOT NULL,
+            completed_at TEXT NOT NULL,
+            UNIQUE(quiz_id, student_id),
+            FOREIGN KEY(quiz_id) REFERENCES quizzes(id),
+            FOREIGN KEY(student_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE quiz_answers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            attempt_id INTEGER NOT NULL,
+            question_id INTEGER NOT NULL,
+            selected_option TEXT NOT NULL,
+            is_correct INTEGER NOT NULL,
+            FOREIGN KEY(attempt_id) REFERENCES quiz_attempts(id),
+            FOREIGN KEY(question_id) REFERENCES quiz_questions(id)
         );
         """
     )
@@ -372,7 +469,72 @@ def resource_stats(db: sqlite3.Connection, resource_id: int) -> dict[str, float]
     }
 
 
+def message_threads_for_course(db: sqlite3.Connection, course_id: int) -> list[dict[str, Any]]:
+    rows = db.execute(
+        """
+        SELECT course_messages.*, users.name AS author_name, users.role AS author_role
+        FROM course_messages
+        JOIN users ON users.id = course_messages.author_id
+        WHERE course_messages.course_id = ?
+        ORDER BY course_messages.created_at ASC, course_messages.id ASC
+        """,
+        (course_id,),
+    ).fetchall()
+    items: dict[int, dict[str, Any]] = {}
+    roots: list[dict[str, Any]] = []
+    for row in rows:
+        node = {**dict(row), "replies": []}
+        items[row["id"]] = node
+        if row["parent_id"] is None:
+            roots.append(node)
+        elif row["parent_id"] in items:
+            items[row["parent_id"]]["replies"].append(node)
+    return roots
+
+
+def quiz_rows_for_course(db: sqlite3.Connection, course_id: int, user_id: int | None = None) -> list[dict[str, Any]]:
+    quizzes = db.execute("SELECT * FROM quizzes WHERE course_id = ? ORDER BY id DESC", (course_id,)).fetchall()
+    rows: list[dict[str, Any]] = []
+    for quiz in quizzes:
+        questions = [dict(row) for row in db.execute("SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY id", (quiz["id"],)).fetchall()]
+        attempts = [dict(row) for row in db.execute(
+            "SELECT quiz_attempts.*, users.name AS student_name FROM quiz_attempts JOIN users ON users.id = quiz_attempts.student_id WHERE quiz_id = ? ORDER BY completed_at DESC",
+            (quiz["id"],),
+        ).fetchall()]
+        my_attempt = None
+        if user_id:
+            my_attempt_row = db.execute("SELECT * FROM quiz_attempts WHERE quiz_id = ? AND student_id = ?", (quiz["id"], user_id)).fetchone()
+            my_attempt = dict(my_attempt_row) if my_attempt_row else None
+        students = db.execute(
+            "SELECT users.id, users.name FROM enrollments JOIN users ON users.id = enrollments.user_id WHERE enrollments.course_id = ? AND users.role = 'student' ORDER BY users.name",
+            (course_id,),
+        ).fetchall()
+        score_map = {item["student_id"]: item["score"] for item in attempts}
+        completion = [
+            {
+                "student_id": student["id"],
+                "student_name": student["name"],
+                "completed": student["id"] in score_map,
+                "score": score_map.get(student["id"]),
+            }
+            for student in students
+        ]
+        rows.append({
+            **dict(quiz),
+            "questions": questions,
+            "question_count": len(questions),
+            "attempts": attempts,
+            "my_attempt": my_attempt,
+            "completion": completion,
+        })
+    return rows
+
+
 def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict[str, Any]]:
+    role = None
+    if user_id:
+        role_row = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        role = role_row["role"] if role_row else None
     rows = db.execute(
         """
         SELECT courses.*, users.name AS teacher_name
@@ -389,42 +551,35 @@ def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict
                 "SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?",
                 (user_id, row["id"]),
             ).fetchone() is not None
+        if role == "student" and not is_enrolled:
+            continue
+        if role == "teacher" and row["teacher_id"] != user_id:
+            continue
+
         resources = []
         for resource in db.execute(
-            """
-            SELECT id, title, resource_type, tags, url, summary
-            FROM resources
-            WHERE course_id = ?
-            ORDER BY id
-            """,
+            "SELECT * FROM resources WHERE course_id = ? ORDER BY id",
             (row["id"],),
         ).fetchall():
             completed = False
             if user_id:
                 completed = db.execute(
-                    """
-                    SELECT 1
-                    FROM activity_logs
-                    WHERE user_id = ? AND course_id = ? AND resource_id = ?
-                    LIMIT 1
-                    """,
+                    "SELECT 1 FROM activity_logs WHERE user_id = ? AND course_id = ? AND resource_id = ? LIMIT 1",
                     (user_id, row["id"], resource["id"]),
                 ).fetchone() is not None
+            stats = resource_stats(db, resource["id"])
             resources.append(
                 {
                     **dict(resource),
+                    **stats,
                     "tags": parse_tags(resource["tags"]),
                     "completed": completed,
                 }
             )
+
         assignments = []
         for assignment in db.execute(
-            """
-            SELECT *
-            FROM assignments
-            WHERE course_id = ?
-            ORDER BY due_date, id
-            """,
+            "SELECT * FROM assignments WHERE course_id = ? ORDER BY due_date, id",
             (row["id"],),
         ).fetchall():
             pending_students = [
@@ -447,13 +602,21 @@ def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict
                     (row["id"], assignment["id"]),
                 ).fetchall()
             ]
+            my_submission = None
+            if role == "student" and user_id:
+                my_submission = db.execute(
+                    "SELECT id AS submission_id, filename, submitted_at, score, feedback FROM submissions WHERE assignment_id = ? AND student_id = ?",
+                    (assignment["id"], user_id),
+                ).fetchone()
             assignments.append(
                 {
                     **dict(assignment),
                     "pending_students": pending_students,
                     "pending_count": len(pending_students),
+                    "my_submission": dict(my_submission) if my_submission else None,
                 }
             )
+
         result.append(
             {
                 **dict(row),
@@ -463,6 +626,8 @@ def course_rows(db: sqlite3.Connection, user_id: int | None = None) -> list[dict
                 "is_enrolled": is_enrolled,
                 "resources": resources,
                 "assignments": assignments,
+                "messages": message_threads_for_course(db, row["id"]),
+                "quizzes": quiz_rows_for_course(db, row["id"], user_id),
             }
         )
     return result
@@ -765,18 +930,38 @@ def analytics_snapshot(db: sqlite3.Connection, user_id: int) -> dict[str, Any]:
 
 def student_dashboard_data(db: sqlite3.Connection, user_id: int) -> dict[str, Any]:
     assignments = student_assignment_rows(db, user_id)
-    courses = [
-        row
-        for row in course_rows(db, user_id)
-        if db.execute("SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?", (user_id, row["id"])).fetchone()
-    ]
-    return {"courses": courses, "assignments": assignments[:4], "recommendations": recommend_resources(db, user_id, top_n=4)}
+    courses = []
+    for row in course_rows(db, user_id):
+        if not db.execute("SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?", (user_id, row["id"])).fetchone():
+            continue
+        course_assignments = [item for item in assignments if item["course_id"] == row["id"]]
+        total = len(course_assignments)
+        submitted = sum(1 for item in course_assignments if item["status"] != "待提交")
+        courses.append({
+            **row,
+            "progress_link": url_for("courses", user_id=user_id, course_id=row["id"]),
+            "submission_link": url_for("assignments", user_id=user_id, course_id=row["id"]),
+            "assignment_breakdown": course_assignments,
+            "submission_rate": round((submitted / total) * 100) if total else 0,
+        })
+    enriched_assignments = []
+    for item in assignments[:6]:
+        enriched_assignments.append({
+            **item,
+            "detail_link": url_for("assignments", user_id=user_id, assignment_id=item["id"]),
+        })
+    return {"courses": courses, "assignments": enriched_assignments, "recommendations": recommend_resources(db, user_id, top_n=4)}
 
 
 def teacher_dashboard_data(db: sqlite3.Connection, user_id: int) -> dict[str, Any]:
-    courses = [row for row in course_rows(db) if row["teacher_id"] == user_id]
-    submissions = teacher_submission_rows(db, user_id)
-    return {"courses": courses, "submissions": submissions[:6]}
+    courses = [row for row in course_rows(db, user_id) if row["teacher_id"] == user_id]
+    submissions = []
+    for row in teacher_submission_rows(db, user_id)[:6]:
+        submissions.append({
+            **dict(row),
+            "grading_link": url_for("assignments", user_id=user_id, submission_id=row["id"]),
+        })
+    return {"courses": courses, "submissions": submissions}
 
 
 def admin_dashboard_data(db: sqlite3.Connection) -> dict[str, Any]:
@@ -789,39 +974,45 @@ def admin_dashboard_data(db: sqlite3.Connection) -> dict[str, Any]:
 
 
 def admin_management_data(db: sqlite3.Connection) -> dict[str, Any]:
-    users = db.execute("SELECT * FROM users ORDER BY role, id").fetchall()
-    courses = db.execute(
+    users = [dict(row) for row in db.execute("SELECT * FROM users ORDER BY role, id DESC").fetchall()]
+    courses = [dict(row) for row in db.execute(
         """
         SELECT courses.*, users.name AS teacher_name
         FROM courses
         JOIN users ON users.id = courses.teacher_id
-        ORDER BY courses.id
+        ORDER BY courses.id DESC
         """
-    ).fetchall()
-    resources = db.execute(
+    ).fetchall()]
+    resources = [dict(row) for row in db.execute(
         """
         SELECT resources.*, courses.title AS course_title
         FROM resources
         JOIN courses ON courses.id = resources.course_id
-        ORDER BY resources.id
+        ORDER BY resources.id DESC
         """
-    ).fetchall()
-    enrollments = db.execute(
+    ).fetchall()]
+    for item in resources:
+        item.update(resource_stats(db, item["id"]))
+    enrollments = [dict(row) for row in db.execute(
         """
-        SELECT enrollments.id, students.name AS student_name, courses.title AS course_title
+        SELECT enrollments.id, students.name AS student_name, students.id AS student_id, courses.title AS course_title, courses.id AS course_id
         FROM enrollments
         JOIN users AS students ON students.id = enrollments.user_id
         JOIN courses ON courses.id = enrollments.course_id
-        ORDER BY enrollments.id
+        ORDER BY enrollments.id DESC
         """
-    ).fetchall()
+    ).fetchall()]
+    students = [user for user in users if user["role"] == "student"]
+    teachers = [user for user in users if user["role"] == "teacher"]
     return {
-        "users": users,
-        "courses": courses,
-        "resources": resources,
-        "enrollments": enrollments,
-        "teachers": [user for user in users if user["role"] == "teacher"],
-        "students": [user for user in users if user["role"] == "student"],
+        "students": paginate_rows(students, page_arg("student_page")),
+        "teachers": paginate_rows(teachers, page_arg("teacher_page")),
+        "courses": paginate_rows(courses, page_arg("course_page")),
+        "resources": paginate_rows(resources, page_arg("resource_page")),
+        "enrollments": paginate_rows(enrollments, page_arg("enrollment_page")),
+        "teachers_all": teachers,
+        "students_all": students,
+        "courses_all": courses,
     }
 
 
@@ -830,10 +1021,69 @@ def ensure_database() -> None:
     if not DATABASE_PATH.exists():
         init_db()
     db = get_db()
+
     notification_columns = [row["name"] for row in db.execute("PRAGMA table_info(notifications)").fetchall()]
     if "recipient_id" not in notification_columns:
         db.execute("ALTER TABLE notifications ADD COLUMN recipient_id INTEGER")
         db.commit()
+    if "course_id" not in notification_columns:
+        db.execute("ALTER TABLE notifications ADD COLUMN course_id INTEGER")
+        db.commit()
+
+    resource_columns = [row["name"] for row in db.execute("PRAGMA table_info(resources)").fetchall()]
+    if "file_path" not in resource_columns:
+        db.execute("ALTER TABLE resources ADD COLUMN file_path TEXT")
+        db.commit()
+    if "original_filename" not in resource_columns:
+        db.execute("ALTER TABLE resources ADD COLUMN original_filename TEXT")
+        db.commit()
+
+    db.executescript("""
+    CREATE TABLE IF NOT EXISTS course_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id INTEGER NOT NULL,
+        author_id INTEGER NOT NULL,
+        parent_id INTEGER,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS quizzes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_by INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS quiz_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quiz_id INTEGER NOT NULL,
+        question_text TEXT NOT NULL,
+        option_a TEXT NOT NULL,
+        option_b TEXT NOT NULL,
+        option_c TEXT NOT NULL,
+        option_d TEXT NOT NULL,
+        correct_option TEXT NOT NULL,
+        explanation TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS quiz_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quiz_id INTEGER NOT NULL,
+        student_id INTEGER NOT NULL,
+        score REAL NOT NULL,
+        completed_at TEXT NOT NULL,
+        UNIQUE(quiz_id, student_id)
+    );
+    CREATE TABLE IF NOT EXISTS quiz_answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id INTEGER NOT NULL,
+        question_id INTEGER NOT NULL,
+        selected_option TEXT NOT NULL,
+        is_correct INTEGER NOT NULL
+    );
+    """)
+    db.commit()
+
     g.current_user = db.execute("SELECT * FROM users WHERE id = ?", (current_user_id(),)).fetchone()
 
 
@@ -841,7 +1091,7 @@ def ensure_database() -> None:
 def inject_globals() -> dict[str, Any]:
     db = get_db()
     users = db.execute("SELECT id, name, role FROM users ORDER BY id").fetchall()
-    return {"current_user": g.current_user, "users": users, "user_id": current_user_id()}
+    return {"current_user": g.current_user, "users": users, "user_id": current_user_id(), "resource_types": RESOURCE_TYPES}
 
 
 @app.route("/switch-user")
@@ -1004,15 +1254,22 @@ def admin_delete_course(course_id: int) -> Any:
 def admin_create_resource() -> Any:
     require_roles("admin")
     db = get_db()
+    file_path, original_filename = save_resource_upload(request.files.get("resource_file"))
+    url = request.form.get("url", "").strip()
+    if not url and not file_path:
+        flash("请至少提供资源链接或上传本地文件。")
+        return redirect(url_for("admin_portal", user_id=current_user_id()))
     db.execute(
-        "INSERT INTO resources (course_id, title, resource_type, tags, url, summary) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO resources (course_id, title, resource_type, tags, url, summary, file_path, original_filename) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             int(request.form["course_id"]),
             request.form["title"].strip(),
             request.form["resource_type"].strip(),
             request.form["tags"].strip(),
-            request.form["url"].strip(),
+            url,
             request.form["summary"].strip(),
+            file_path,
+            original_filename,
         ),
     )
     db.commit()
@@ -1024,15 +1281,19 @@ def admin_create_resource() -> Any:
 def admin_update_resource(resource_id: int) -> Any:
     require_roles("admin")
     db = get_db()
+    current = db.execute("SELECT file_path, original_filename FROM resources WHERE id = ?", (resource_id,)).fetchone()
+    file_path, original_filename = save_resource_upload(request.files.get("resource_file"))
     db.execute(
-        "UPDATE resources SET course_id = ?, title = ?, resource_type = ?, tags = ?, url = ?, summary = ? WHERE id = ?",
+        "UPDATE resources SET course_id = ?, title = ?, resource_type = ?, tags = ?, url = ?, summary = ?, file_path = ?, original_filename = ? WHERE id = ?",
         (
             int(request.form["course_id"]),
             request.form["title"].strip(),
             request.form["resource_type"].strip(),
             request.form["tags"].strip(),
-            request.form["url"].strip(),
+            request.form.get("url", "").strip(),
             request.form["summary"].strip(),
+            file_path or current["file_path"],
+            original_filename or current["original_filename"],
             resource_id,
         ),
     )
@@ -1078,23 +1339,18 @@ def admin_delete_enrollment(enrollment_id: int) -> Any:
 
 @app.route("/courses")
 def courses() -> str:
-    return render_template("courses.html", courses=course_rows(get_db(), current_user_id()))
+    if g.current_user["role"] == "admin":
+        return redirect(url_for("admin_portal", user_id=current_user_id()))
+    focus_course_id = request.args.get("course_id", type=int)
+    rows = course_rows(get_db(), current_user_id())
+    if focus_course_id:
+        rows = [row for row in rows if row["id"] == focus_course_id]
+    return render_template("courses.html", courses=rows, focus_course_id=focus_course_id)
 
 
 @app.route("/courses/<int:course_id>/enroll", methods=["POST"])
 def enroll_course(course_id: int) -> Any:
-    require_roles("student")
-    db = get_db()
-    course = db.execute("SELECT id FROM courses WHERE id = ?", (course_id,)).fetchone()
-    if course is None:
-        abort(404)
-    db.execute(
-        "INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)",
-        (current_user_id(), course_id),
-    )
-    db.commit()
-    flash("选课已生效，课程会立即进入你的学习列表。")
-    return redirect(url_for("courses", user_id=current_user_id()))
+    abort(403)
 
 
 @app.route("/courses/<int:course_id>/resources/create", methods=["POST"])
@@ -1103,20 +1359,27 @@ def create_course_resource(course_id: int) -> Any:
     if not can_manage_course(current_user_id(), course_id):
         abort(403)
     db = get_db()
+    file_path, original_filename = save_resource_upload(request.files.get("resource_file"))
+    url = request.form.get("url", "").strip()
+    if not url and not file_path:
+        flash("请至少提供资源链接或上传本地文件。")
+        return redirect(url_for("courses", user_id=current_user_id(), course_id=course_id))
     db.execute(
-        "INSERT INTO resources (course_id, title, resource_type, tags, url, summary) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO resources (course_id, title, resource_type, tags, url, summary, file_path, original_filename) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             course_id,
             request.form["title"].strip(),
             request.form["resource_type"].strip(),
             request.form["tags"].strip(),
-            request.form["url"].strip(),
+            url,
             request.form["summary"].strip(),
+            file_path,
+            original_filename,
         ),
     )
     db.commit()
-    flash("应学资源已新增。")
-    return redirect(url_for("courses", user_id=current_user_id()))
+    flash("课程资源已新增。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=course_id))
 
 
 @app.route("/courses/<int:course_id>/resources/<int:resource_id>/update", methods=["POST"])
@@ -1125,25 +1388,29 @@ def update_course_resource(course_id: int, resource_id: int) -> Any:
     if not can_manage_course(current_user_id(), course_id):
         abort(403)
     db = get_db()
+    current = db.execute("SELECT file_path, original_filename FROM resources WHERE id = ? AND course_id = ?", (resource_id, course_id)).fetchone()
+    file_path, original_filename = save_resource_upload(request.files.get("resource_file"))
     db.execute(
         """
         UPDATE resources
-        SET title = ?, resource_type = ?, tags = ?, url = ?, summary = ?
+        SET title = ?, resource_type = ?, tags = ?, url = ?, summary = ?, file_path = ?, original_filename = ?
         WHERE id = ? AND course_id = ?
         """,
         (
             request.form["title"].strip(),
             request.form["resource_type"].strip(),
             request.form["tags"].strip(),
-            request.form["url"].strip(),
+            request.form.get("url", "").strip(),
             request.form["summary"].strip(),
+            file_path or current["file_path"],
+            original_filename or current["original_filename"],
             resource_id,
             course_id,
         ),
     )
     db.commit()
-    flash("应学资源已更新。")
-    return redirect(url_for("courses", user_id=current_user_id()))
+    flash("课程资源已更新。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=course_id))
 
 
 @app.route("/courses/<int:course_id>/assignments/create", methods=["POST"])
@@ -1151,6 +1418,7 @@ def create_course_assignment(course_id: int) -> Any:
     require_roles("teacher", "admin")
     if not can_manage_course(current_user_id(), course_id):
         abort(403)
+
     db = get_db()
     db.execute(
         """
@@ -1165,9 +1433,32 @@ def create_course_assignment(course_id: int) -> Any:
             int(request.form["max_score"]),
         ),
     )
+    assignment_title = request.form["title"].strip()
+    due_date = request.form["due_date"].strip()
+    course = db.execute("SELECT title FROM courses WHERE id = ?", (course_id,)).fetchone()
+    students = db.execute(
+        "SELECT users.id FROM enrollments JOIN users ON users.id = enrollments.user_id WHERE enrollments.course_id = ? AND users.role = 'student'",
+        (course_id,),
+    ).fetchall()
+
+    for student in students:
+        db.execute(
+            "INSERT INTO notifications (author_id, recipient_id, course_id, title, category, content, created_at, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                current_user_id(),
+                student["id"],
+                course_id,
+                f"新作业：{assignment_title}",
+                "作业",
+                f"{course['title']} 发布了新作业《{assignment_title}》，截止日期 {due_date}。",
+                now_string(),
+                "高",
+            ),
+        )
+
     db.commit()
-    flash("课程作业已发布。")
-    return redirect(url_for("courses", user_id=current_user_id()))
+    flash("课程作业已发布，并已向学生发送提醒。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=course_id))
 
 
 @app.route("/assignments/<int:assignment_id>/remind", methods=["POST"])
@@ -1187,6 +1478,7 @@ def remind_assignment_pending_students(assignment_id: int) -> Any:
         abort(404)
     if not can_manage_course(current_user_id(), assignment["course_id"]):
         abort(403)
+
     pending_students = db.execute(
         """
         SELECT users.id, users.name
@@ -1204,34 +1496,173 @@ def remind_assignment_pending_students(assignment_id: int) -> Any:
         """,
         (assignment["course_id"], assignment_id),
     ).fetchall()
+
     for student in pending_students:
         db.execute(
-            """
-            INSERT INTO notifications (author_id, recipient_id, title, category, content, created_at, priority)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
+            "INSERT INTO notifications (author_id, recipient_id, course_id, title, category, content, created_at, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 current_user_id(),
                 student["id"],
+                assignment["course_id"],
                 f"作业催交通知：{assignment['title']}",
                 "作业催交",
-                f"{student['name']}，请尽快提交《{assignment['title']}》。课程：{assignment['course_title']}，截止日期：{assignment['due_date']}。",
+                f"{student['name']}，请尽快提交《{assignment['title']}》，课程：{assignment['course_title']}，截止日期：{assignment['due_date']}。",
                 now_string(),
                 "高",
             ),
         )
+
     db.commit()
-    flash(f"已向 {len(pending_students)} 名未提交学生发送定向催交通知。")
-    return redirect(url_for("courses", user_id=current_user_id()))
+    flash(f"已向 {len(pending_students)} 名未提交学生发送提醒。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=assignment["course_id"]))
+
+
+@app.route("/courses/<int:course_id>/messages/create", methods=["POST"])
+def create_course_message(course_id: int) -> Any:
+    require_roles("student")
+    db = get_db()
+    enrolled = db.execute("SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?", (current_user_id(), course_id)).fetchone()
+    if enrolled is None:
+        abort(403)
+    db.execute(
+        "INSERT INTO course_messages (course_id, author_id, parent_id, content, created_at) VALUES (?, ?, NULL, ?, ?)",
+        (course_id, current_user_id(), request.form["content"].strip(), now_string()),
+    )
+    db.commit()
+    flash("问题已发布到课程留言板。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=course_id))
+
+
+@app.route("/courses/<int:course_id>/messages/<int:message_id>/reply", methods=["POST"])
+def reply_course_message(course_id: int, message_id: int) -> Any:
+    require_roles("teacher", "admin")
+    if not can_manage_course(current_user_id(), course_id):
+        abort(403)
+    db = get_db()
+    db.execute(
+        "INSERT INTO course_messages (course_id, author_id, parent_id, content, created_at) VALUES (?, ?, ?, ?, ?)",
+        (course_id, current_user_id(), message_id, request.form["content"].strip(), now_string()),
+    )
+    db.commit()
+    flash("回复已发布。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=course_id))
+
+
+@app.route("/courses/<int:course_id>/quizzes/create", methods=["POST"])
+def create_quiz(course_id: int) -> Any:
+    require_roles("teacher", "admin")
+    if not can_manage_course(current_user_id(), course_id):
+        abort(403)
+    db = get_db()
+    cursor = db.execute(
+        "INSERT INTO quizzes (course_id, title, description, created_by, created_at) VALUES (?, ?, ?, ?, ?)",
+        (course_id, request.form["title"].strip(), request.form["description"].strip(), current_user_id(), now_string()),
+    )
+    quiz_id = cursor.lastrowid
+    for index in range(1, 6):
+        question = request.form.get(f"question_text_{index}", "").strip()
+        if not question:
+            continue
+        option_a = request.form.get(f"option_a_{index}", "").strip()
+        option_b = request.form.get(f"option_b_{index}", "").strip()
+        option_c = request.form.get(f"option_c_{index}", "").strip()
+        option_d = request.form.get(f"option_d_{index}", "").strip()
+        if not all([option_a, option_b, option_c, option_d]):
+            continue
+        db.execute(
+            "INSERT INTO quiz_questions (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                quiz_id,
+                question,
+                option_a,
+                option_b,
+                option_c,
+                option_d,
+                request.form.get(f"correct_option_{index}", "A").strip(),
+                request.form.get(f"explanation_{index}", "").strip(),
+            ),
+        )
+    db.commit()
+    flash("在线测试已发布。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=course_id))
+
+
+@app.route("/quizzes/<int:quiz_id>/submit", methods=["POST"])
+def submit_quiz(quiz_id: int) -> Any:
+    require_roles("student")
+    db = get_db()
+    quiz = db.execute("SELECT * FROM quizzes WHERE id = ?", (quiz_id,)).fetchone()
+    if quiz is None:
+        abort(404)
+    enrolled = db.execute("SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?", (current_user_id(), quiz["course_id"])).fetchone()
+    if enrolled is None:
+        abort(403)
+    questions = db.execute("SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY id", (quiz_id,)).fetchall()
+    if not questions:
+        flash("该测试还没有题目。")
+        return redirect(url_for("courses", user_id=current_user_id(), course_id=quiz["course_id"]))
+    correct = 0
+    answers = []
+    for question in questions:
+        selected = request.form.get(f"question_{question['id']}", "").strip().upper() or "未作答"
+        is_correct = int(selected == question["correct_option"])
+        correct += is_correct
+        answers.append((question["id"], selected, is_correct))
+    score = round(correct / len(questions) * 100, 1)
+    existing = db.execute("SELECT id FROM quiz_attempts WHERE quiz_id = ? AND student_id = ?", (quiz_id, current_user_id())).fetchone()
+    if existing:
+        attempt_id = existing["id"]
+        db.execute("UPDATE quiz_attempts SET score = ?, completed_at = ? WHERE id = ?", (score, now_string(), attempt_id))
+        db.execute("DELETE FROM quiz_answers WHERE attempt_id = ?", (attempt_id,))
+    else:
+        cursor = db.execute(
+            "INSERT INTO quiz_attempts (quiz_id, student_id, score, completed_at) VALUES (?, ?, ?, ?)",
+            (quiz_id, current_user_id(), score, now_string()),
+        )
+        attempt_id = cursor.lastrowid
+    db.executemany(
+        "INSERT INTO quiz_answers (attempt_id, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?)",
+        [(attempt_id, qid, selected, is_correct) for qid, selected, is_correct in answers],
+    )
+    db.commit()
+    flash(f"测试已提交，得分 {score}。")
+    return redirect(url_for("courses", user_id=current_user_id(), course_id=quiz["course_id"]))
 
 
 @app.route("/assignments")
 def assignments() -> str:
     db = get_db()
+    course_id = request.args.get("course_id", type=int)
+    assignment_id = request.args.get("assignment_id", type=int)
+    submission_id = request.args.get("submission_id", type=int)
+
+    if g.current_user["role"] == "admin":
+        return redirect(url_for("admin_portal", user_id=current_user_id()))
+
     if g.current_user["role"] == "student":
-        return render_template("assignments.html", student_assignments=student_assignment_rows(db, current_user_id()), review_rows=None)
+        rows = student_assignment_rows(db, current_user_id())
+        if course_id:
+            rows = [row for row in rows if row["course_id"] == course_id]
+        return render_template(
+            "assignments.html",
+            student_assignments=rows,
+            review_rows=None,
+            focus_assignment_id=assignment_id,
+            focus_submission_id=submission_id,
+        )
+
     reviewer_id = current_user_id() if g.current_user["role"] == "teacher" else None
-    return render_template("assignments.html", student_assignments=None, review_rows=teacher_submission_rows(db, reviewer_id))
+    rows = teacher_submission_rows(db, reviewer_id)
+    if course_id:
+        rows = [row for row in rows if row["course_id"] == course_id]
+    return render_template(
+        "assignments.html",
+        student_assignments=None,
+        review_rows=rows,
+        focus_assignment_id=assignment_id,
+        focus_submission_id=submission_id,
+    )
+
 
 
 @app.route("/assignments/submit", methods=["POST"])
@@ -1306,7 +1737,7 @@ def resources() -> str:
 @app.route("/resources/<int:resource_id>/open")
 def open_resource(resource_id: int) -> Any:
     db = get_db()
-    row = db.execute("SELECT course_id, url FROM resources WHERE id = ?", (resource_id,)).fetchone()
+    row = db.execute("SELECT course_id, url, file_path, original_filename FROM resources WHERE id = ?", (resource_id,)).fetchone()
     if row is None:
         abort(404)
     db.execute(
@@ -1314,7 +1745,13 @@ def open_resource(resource_id: int) -> Any:
         (current_user_id(), resource_id, row["course_id"], now_string()),
     )
     db.commit()
+    if row["file_path"]:
+        return send_file(row["file_path"], as_attachment=False, download_name=row["original_filename"] or Path(row["file_path"]).name)
+    if not row["url"]:
+        flash("该资源暂未配置链接或本地文件。")
+        return redirect(url_for("resources", user_id=current_user_id()))
     return redirect(row["url"])
+
 
 
 @app.route("/resources/<int:resource_id>/download")
@@ -1336,6 +1773,8 @@ def download_resource(resource_id: int) -> Any:
         (current_user_id(), resource_id, row["course_id"], now_string()),
     )
     db.commit()
+    if row["file_path"]:
+        return send_file(row["file_path"], as_attachment=True, download_name=row["original_filename"] or Path(row["file_path"]).name)
     content = (
         f"资源标题：{row['title']}\n"
         f"所属课程：{row['course_title']}\n"
@@ -1350,6 +1789,7 @@ def download_resource(resource_id: int) -> Any:
         download_name=f"{secure_filename(row['title']) or 'resource'}.txt",
         mimetype="text/plain",
     )
+
 
 
 @app.route("/resources/<int:resource_id>/favorite", methods=["POST"])
@@ -1419,30 +1859,71 @@ def rate_resource(resource_id: int) -> Any:
 
 @app.route("/announcements")
 def announcements() -> str:
-    return render_template("announcements.html", notifications=notification_rows(get_db(), current_user_id(), g.current_user["role"]))
+    db = get_db()
+    publish_courses = []
+    if g.current_user["role"] == "teacher":
+        publish_courses = db.execute("SELECT id, title FROM courses WHERE teacher_id = ? ORDER BY id", (current_user_id(),)).fetchall()
+    elif g.current_user["role"] == "admin":
+        publish_courses = db.execute("SELECT id, title FROM courses ORDER BY id").fetchall()
+    return render_template(
+        "announcements.html",
+        notifications=notification_rows(db, current_user_id(), g.current_user["role"]),
+        publish_courses=publish_courses,
+    )
 
 
 @app.route("/announcements/create", methods=["POST"])
 def create_announcement() -> Any:
     require_roles("teacher", "admin")
     db = get_db()
-    db.execute(
-        """
-        INSERT INTO notifications (author_id, recipient_id, title, category, content, created_at, priority)
-        VALUES (?, NULL, ?, ?, ?, ?, ?)
-        """,
-        (
-            current_user_id(),
-            request.form["title"].strip(),
-            request.form["category"].strip(),
-            request.form["content"].strip(),
-            now_string(),
-            request.form["priority"].strip(),
-        ),
-    )
-    db.commit()
-    flash("通知已发布。")
+    title = request.form["title"].strip()
+    category = request.form["category"].strip()
+    content = request.form["content"].strip()
+    priority = request.form["priority"].strip()
+    target = request.form.get("target", "all")
+    course_id = request.form.get("course_id", type=int)
+
+    if target == "course":
+        if not course_id:
+            flash("请选择要定向发送的课程。")
+            return redirect(url_for("announcements", user_id=current_user_id()))
+        if g.current_user["role"] == "teacher" and not can_manage_course(current_user_id(), course_id):
+            abort(403)
+        students = db.execute(
+            "SELECT users.id FROM enrollments JOIN users ON users.id = enrollments.user_id WHERE enrollments.course_id = ? AND users.role = 'student'",
+            (course_id,),
+        ).fetchall()
+        for student in students:
+            db.execute(
+                "INSERT INTO notifications (author_id, recipient_id, course_id, title, category, content, created_at, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (current_user_id(), student["id"], course_id, title, category, content, now_string(), priority),
+            )
+        db.commit()
+        flash(f"通知已定向发送给该课程的 {len(students)} 名学生。")
+    else:
+        db.execute(
+            "INSERT INTO notifications (author_id, recipient_id, course_id, title, category, content, created_at, priority) VALUES (?, NULL, ?, ?, ?, ?, ?, ?)",
+            (current_user_id(), course_id, title, category, content, now_string(), priority),
+        )
+        db.commit()
+        flash("通知已发布。")
     return redirect(url_for("announcements", user_id=current_user_id()))
+
+
+@app.route("/announcements/<int:notification_id>/delete", methods=["POST"])
+def delete_announcement(notification_id: int) -> Any:
+    require_roles("teacher", "admin")
+    db = get_db()
+    row = db.execute("SELECT * FROM notifications WHERE id = ?", (notification_id,)).fetchone()
+    if row is None:
+        abort(404)
+    if g.current_user["role"] == "teacher" and row["author_id"] != current_user_id():
+        abort(403)
+    db.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
+    db.commit()
+    flash("通知已删除。")
+    return redirect(url_for("announcements", user_id=current_user_id()))
+
 
 
 @app.route("/analytics")

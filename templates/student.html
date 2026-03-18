@@ -1,11 +1,11 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}学生端{% endblock %}
 {% block content %}
 <section class="page-head">
   <p class="eyebrow">Student Portal</p>
   <h2>学生端</h2>
-  <p>学生端展示个人课程进度、待提交作业和推荐资源。</p>
 </section>
+
 <section class="panel-grid">
   <article class="panel">
     <h3>课程进度</h3>
@@ -13,19 +13,72 @@
       {% for course in data.courses %}
         <div class="list-card">
           <h4>{{ course.title }}</h4>
-          <p>已浏览资源进度：{{ course.progress }}%</p>
-          <p>课程作业提交率：{{ course.submission_rate }}%</p>
+          <div class="action-row">
+            <a class="pill-link" href="{{ course.progress_link }}">已浏览资源进度：{{ course.progress }}%</a>
+            <button type="button" class="pill-link" onclick="document.getElementById('submission-dialog-{{ course.id }}').showModal()">作业提交率：{{ course.submission_rate }}%</button>
+          </div>
+
+          <dialog id="submission-dialog-{{ course.id }}" class="resource-dialog">
+            <article class="dialog-card">
+              <div class="panel-head">
+                <h3>{{ course.title }} 作业提交情况</h3>
+                <button type="button" class="ghost-button" onclick="document.getElementById('submission-dialog-{{ course.id }}').close()">关闭</button>
+              </div>
+              {% if course.assignment_breakdown %}
+                <div class="card-list">
+                  {% for item in course.assignment_breakdown %}
+                    <div class="list-card">
+                      <div class="panel-head">
+                        <strong>{{ item.title }}</strong>
+                        <span>{{ item.status }}</span>
+                      </div>
+                      <p>截止：{{ item.due_date }} / 满分：{{ item.max_score }}</p>
+                      <div class="action-row">
+                        <a href="{{ url_for('assignments', user_id=user_id, assignment_id=item.id) }}">前往作业</a>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <p class="muted-note">该课程暂无作业。</p>
+              {% endif %}
+            </article>
+          </dialog>
         </div>
       {% endfor %}
     </div>
   </article>
+
   <article class="panel">
     <h3>待处理作业</h3>
     <div class="card-list">
       {% for item in data.assignments %}
         <div class="list-card">
-          <h4>{{ item.title }}</h4>
-          <p>{{ item.course_title }} · {{ item.status }}</p>
+          <div class="panel-head">
+            <h4>{{ item.title }}</h4>
+            <span>{{ item.status }}</span>
+          </div>
+          <p>{{ item.course_title }}</p>
+          <button type="button" class="link-button" onclick="document.getElementById('assignment-dialog-{{ item.id }}').showModal()">查看详情</button>
+
+          <dialog id="assignment-dialog-{{ item.id }}" class="resource-dialog">
+            <article class="dialog-card">
+              <div class="panel-head">
+                <h3>{{ item.title }}</h3>
+                <button type="button" class="ghost-button" onclick="document.getElementById('assignment-dialog-{{ item.id }}').close()">关闭</button>
+              </div>
+              <p>{{ item.course_title }} / 截止 {{ item.due_date }} / 满分 {{ item.max_score }}</p>
+              <p>{{ item.description }}</p>
+              <p>状态：{{ item.status }}</p>
+              {% if item.score is not none %}
+                <p>得分：{{ item.score }}</p>
+                <p>反馈：{{ item.feedback }}</p>
+              {% endif %}
+              <div class="action-row">
+                <a href="{{ url_for('assignments', user_id=user_id, assignment_id=item.id) }}">去完成/查看</a>
+              </div>
+            </article>
+          </dialog>
         </div>
       {% endfor %}
     </div>

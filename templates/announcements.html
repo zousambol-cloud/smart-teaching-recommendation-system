@@ -1,32 +1,54 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}通知中心{% endblock %}
 {% block content %}
 <section class="page-head">
   <p class="eyebrow">Announcements</p>
   <h2>通知中心</h2>
 </section>
+
 {% if current_user.role in ['teacher', 'admin'] %}
   <article class="panel">
     <h3>发布通知</h3>
     <form method="post" action="{{ url_for('create_announcement') }}">
       <input type="hidden" name="user_id" value="{{ user_id }}">
       <input type="text" name="title" placeholder="通知标题" required>
-      <input type="text" name="category" placeholder="分类，如作业/资源/实验" required>
+      <input type="text" name="category" placeholder="分类，如作业/课程/实验/资源" required>
       <select name="priority">
         <option value="高">高</option>
         <option value="中">中</option>
         <option value="低">低</option>
+      </select>
+      <select name="target">
+        <option value="all">全员可见</option>
+        <option value="course">定向发送给课程学生</option>
+      </select>
+      <select name="course_id">
+        <option value="">不绑定课程</option>
+        {% for course in publish_courses %}
+          <option value="{{ course.id }}">{{ course.title }}</option>
+        {% endfor %}
       </select>
       <textarea name="content" rows="4" placeholder="通知内容" required></textarea>
       <button type="submit">发布通知</button>
     </form>
   </article>
 {% endif %}
+
 <section class="card-grid">
   {% for item in notifications %}
-    <article class="list-card">
-      <h3>{{ item.title }}</h3>
-      <p>{{ item.category }} · {{ item.priority }}优先级 · {{ item.author_name }}{% if item.recipient_name %} · 定向给 {{ item.recipient_name }}{% endif %}</p>
+    <article class="panel">
+      <div class="panel-head">
+        <h3>{{ item.title }}</h3>
+        {% if current_user.role in ['teacher', 'admin'] and (current_user.role == 'admin' or item.author_id == current_user.id) %}
+          <form method="post" action="{{ url_for('delete_announcement', notification_id=item.id) }}">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
+            <button type="submit">删除</button>
+          </form>
+        {% endif %}
+      </div>
+      <p>{{ item.category }} / {{ item.priority }}优先级 / {{ item.author_name }}</p>
+      {% if item.course_title %}<p>关联课程：{{ item.course_title }}</p>{% endif %}
+      {% if item.recipient_name %}<p>定向对象：{{ item.recipient_name }}</p>{% endif %}
       <p>{{ item.created_at }}</p>
       <p>{{ item.content }}</p>
     </article>
