@@ -361,3 +361,13 @@ button {
 .danger-card { border-color: rgba(166, 29, 29, 0.55) !important; background: rgba(255, 226, 226, 0.6); }
 .pager-row { margin-top: 10px; font-size: 13px; color: var(--muted); }
 
+
+.admin-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.admin-tabs a { padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,0.7); }
+.admin-tabs a.active { background: #e7f3f1; color: var(--accent); border-color: rgba(22,107,99,0.5); }
+.table-wrap { overflow: auto; border-radius: 18px; border: 1px solid rgba(215, 200, 179, 0.85); }
+.admin-table { min-width: 1100px; background: var(--panel); }
+.admin-table input, .admin-table select, .admin-table textarea { min-width: 120px; }
+.table-actions { display: grid; gap: 8px; min-width: 120px; }
+.wrap-row { flex-wrap: wrap; }
+

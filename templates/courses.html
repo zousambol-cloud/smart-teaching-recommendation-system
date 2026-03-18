@@ -176,21 +176,35 @@
               </div>
               {% if current_user.role == 'student' %}
                 {% if quiz.my_attempt %}
-                  <p>最近成绩：{{ quiz.my_attempt.score }}</p>
+                  <p>已完成，得分：{{ quiz.my_attempt.score }}</p>
+                  <div class="card-list compact-list">
+                    {% for answer in quiz.answer_details %}
+                      <div class="list-card {% if not answer.is_correct %}danger-card{% endif %}">
+                        <div class="panel-head">
+                          <strong>{{ loop.index }}. {{ answer.question_text }}</strong>
+                          <span>{% if answer.is_correct %}正确{% else %}错误{% endif %}</span>
+                        </div>
+                        <p>你的答案：{{ answer.selected_option }}</p>
+                        <p>正确答案：{{ answer.correct_option }}</p>
+                        <p>解析：{{ answer.explanation }}</p>
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <form method="post" action="{{ url_for('submit_quiz', quiz_id=quiz.id) }}">
+                    <input type="hidden" name="user_id" value="{{ user_id }}">
+                    {% for question in quiz.questions %}
+                      <div class="quiz-question">
+                        <p><strong>{{ loop.index }}. {{ question.question_text }}</strong></p>
+                        <label><input type="radio" name="question_{{ question.id }}" value="A"> A. {{ question.option_a }}</label>
+                        <label><input type="radio" name="question_{{ question.id }}" value="B"> B. {{ question.option_b }}</label>
+                        <label><input type="radio" name="question_{{ question.id }}" value="C"> C. {{ question.option_c }}</label>
+                        <label><input type="radio" name="question_{{ question.id }}" value="D"> D. {{ question.option_d }}</label>
+                      </div>
+                    {% endfor %}
+                    <button type="submit">提交测试</button>
+                  </form>
                 {% endif %}
-                <form method="post" action="{{ url_for('submit_quiz', quiz_id=quiz.id) }}">
-                  <input type="hidden" name="user_id" value="{{ user_id }}">
-                  {% for question in quiz.questions %}
-                    <div class="quiz-question">
-                      <p><strong>{{ loop.index }}. {{ question.question_text }}</strong></p>
-                      <label><input type="radio" name="question_{{ question.id }}" value="A"> A. {{ question.option_a }}</label>
-                      <label><input type="radio" name="question_{{ question.id }}" value="B"> B. {{ question.option_b }}</label>
-                      <label><input type="radio" name="question_{{ question.id }}" value="C"> C. {{ question.option_c }}</label>
-                      <label><input type="radio" name="question_{{ question.id }}" value="D"> D. {{ question.option_d }}</label>
-                    </div>
-                  {% endfor %}
-                  <button type="submit">提交测试</button>
-                </form>
               {% else %}
                 <div class="card-list compact-list">
                   {% for item in quiz.completion %}

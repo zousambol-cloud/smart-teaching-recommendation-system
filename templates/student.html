@@ -13,15 +13,15 @@
       {% for course in data.courses %}
         <div class="list-card">
           <h4>{{ course.title }}</h4>
-          <div class="action-row">
+          <div class="action-row wrap-row">
             <a class="pill-link" href="{{ course.progress_link }}">已浏览资源进度：{{ course.progress }}%</a>
-            <button type="button" class="pill-link" onclick="document.getElementById('submission-dialog-{{ course.id }}').showModal()">作业提交率：{{ course.submission_rate }}%</button>
+            <button type="button" class="pill-link" onclick="document.getElementById('submission-dialog-{{ course.id }}').showModal()">作业情况</button>
           </div>
 
           <dialog id="submission-dialog-{{ course.id }}" class="resource-dialog">
             <article class="dialog-card">
               <div class="panel-head">
-                <h3>{{ course.title }} 作业提交情况</h3>
+                <h3>{{ course.title }} 作业情况</h3>
                 <button type="button" class="ghost-button" onclick="document.getElementById('submission-dialog-{{ course.id }}').close()">关闭</button>
               </div>
               {% if course.assignment_breakdown %}
@@ -59,24 +59,32 @@
             <span>{{ item.status }}</span>
           </div>
           <p>{{ item.course_title }}</p>
-          <button type="button" class="link-button" onclick="document.getElementById('assignment-dialog-{{ item.id }}').showModal()">查看详情</button>
+          <button type="button" class="link-button" onclick="document.getElementById('assignment-dialog-{{ item.kind }}-{{ item.id }}').showModal()">查看详情</button>
 
-          <dialog id="assignment-dialog-{{ item.id }}" class="resource-dialog">
+          <dialog id="assignment-dialog-{{ item.kind }}-{{ item.id }}" class="resource-dialog">
             <article class="dialog-card">
               <div class="panel-head">
                 <h3>{{ item.title }}</h3>
-                <button type="button" class="ghost-button" onclick="document.getElementById('assignment-dialog-{{ item.id }}').close()">关闭</button>
+                <button type="button" class="ghost-button" onclick="document.getElementById('assignment-dialog-{{ item.kind }}-{{ item.id }}').close()">关闭</button>
               </div>
-              <p>{{ item.course_title }} / 截止 {{ item.due_date }} / 满分 {{ item.max_score }}</p>
-              <p>{{ item.description }}</p>
-              <p>状态：{{ item.status }}</p>
-              {% if item.score is not none %}
-                <p>得分：{{ item.score }}</p>
-                <p>反馈：{{ item.feedback }}</p>
+              <p>{{ item.course_title }}</p>
+              {% if item.kind == 'quiz' %}
+                <p>{{ item.description }}</p>
+                <p>状态：待完成测试</p>
+                <div class="action-row">
+                  <a href="{{ item.detail_link }}">去完成测试</a>
+                </div>
+              {% else %}
+                <p>{{ item.description }}</p>
+                <p>状态：{{ item.status }}</p>
+                {% if item.score is not none %}
+                  <p>得分：{{ item.score }}</p>
+                  <p>反馈：{{ item.feedback }}</p>
+                {% endif %}
+                <div class="action-row">
+                  <a href="{{ item.detail_link }}">去完成/查看</a>
+                </div>
               {% endif %}
-              <div class="action-row">
-                <a href="{{ url_for('assignments', user_id=user_id, assignment_id=item.id) }}">去完成/查看</a>
-              </div>
             </article>
           </dialog>
         </div>

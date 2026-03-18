@@ -502,9 +502,25 @@ def quiz_rows_for_course(db: sqlite3.Connection, course_id: int, user_id: int | 
             (quiz["id"],),
         ).fetchall()]
         my_attempt = None
+        answer_details: list[dict[str, Any]] = []
         if user_id:
             my_attempt_row = db.execute("SELECT * FROM quiz_attempts WHERE quiz_id = ? AND student_id = ?", (quiz["id"], user_id)).fetchone()
             my_attempt = dict(my_attempt_row) if my_attempt_row else None
+            if my_attempt:
+                answer_details = [
+                    dict(row)
+                    for row in db.execute(
+                        """
+                        SELECT quiz_answers.selected_option, quiz_answers.is_correct, quiz_questions.question_text,
+                               quiz_questions.correct_option, quiz_questions.explanation
+                        FROM quiz_answers
+                        JOIN quiz_questions ON quiz_questions.id = quiz_answers.question_id
+                        WHERE quiz_answers.attempt_id = ?
+                        ORDER BY quiz_questions.id
+                        """,
+                        (my_attempt["id"],),
+                    ).fetchall()
+                ]
         students = db.execute(
             "SELECT users.id, users.name FROM enrollments JOIN users ON users.id = enrollments.user_id WHERE enrollments.course_id = ? AND users.role = 'student' ORDER BY users.name",
             (course_id,),
@@ -525,6 +541,7 @@ def quiz_rows_for_course(db: sqlite3.Connection, course_id: int, user_id: int | 
             "question_count": len(questions),
             "attempts": attempts,
             "my_attempt": my_attempt,
+            "answer_details": answer_details,
             "completion": completion,
         })
     return rows
@@ -824,7 +841,10 @@ def collaborative_scores(db: sqlite3.Connection, user_id: int) -> dict[int, floa
         for resource_id, weight in matrix[other_user_id].items():
             if resource_id not in target:
                 scores[resource_id] += similarity * weight
-    return scores
+    max_score = max(scores.values(), default=0)
+    if max_score > 0:
+        scores = defaultdict(float, {resource_id: value / max_score for resource_id, value in scores.items()})
+    return dict(scores)
 
 
 def content_scores(db: sqlite3.Connection, user_id: int) -> dict[int, float]:
@@ -931,12 +951,25 @@ def analytics_snapshot(db: sqlite3.Connection, user_id: int) -> dict[str, Any]:
 def student_dashboard_data(db: sqlite3.Connection, user_id: int) -> dict[str, Any]:
     assignments = student_assignment_rows(db, user_id)
     courses = []
+    quiz_reminders: list[dict[str, Any]] = []
     for row in course_rows(db, user_id):
         if not db.execute("SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?", (user_id, row["id"])).fetchone():
             continue
         course_assignments = [item for item in assignments if item["course_id"] == row["id"]]
         total = len(course_assignments)
         submitted = sum(1 for item in course_assignments if item["status"] != "待提交")
+        for quiz in row.get("quizzes", []):
+            if not quiz.get("my_attempt"):
+                quiz_reminders.append({
+                    "id": quiz["id"],
+                    "kind": "quiz",
+                    "title": quiz["title"],
+                    "course_id": row["id"],
+                    "course_title": row["title"],
+                    "status": "待完成测试",
+                    "description": quiz["description"],
+                    "detail_link": url_for("courses", user_id=user_id, course_id=row["id"]),
+                })
         courses.append({
             **row,
             "progress_link": url_for("courses", user_id=user_id, course_id=row["id"]),
@@ -948,9 +981,11 @@ def student_dashboard_data(db: sqlite3.Connection, user_id: int) -> dict[str, An
     for item in assignments[:6]:
         enriched_assignments.append({
             **item,
+            "kind": "assignment",
             "detail_link": url_for("assignments", user_id=user_id, assignment_id=item["id"]),
         })
-    return {"courses": courses, "assignments": enriched_assignments, "recommendations": recommend_resources(db, user_id, top_n=4)}
+    pending_items = sorted(quiz_reminders + enriched_assignments, key=lambda item: item["title"])[:8]
+    return {"courses": courses, "assignments": pending_items, "recommendations": recommend_resources(db, user_id, top_n=4)}
 
 
 def teacher_dashboard_data(db: sqlite3.Connection, user_id: int) -> dict[str, Any]:
@@ -1597,6 +1632,10 @@ def submit_quiz(quiz_id: int) -> Any:
     enrolled = db.execute("SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ?", (current_user_id(), quiz["course_id"])).fetchone()
     if enrolled is None:
         abort(403)
+    existing = db.execute("SELECT id FROM quiz_attempts WHERE quiz_id = ? AND student_id = ?", (quiz_id, current_user_id())).fetchone()
+    if existing:
+        flash("该测试已完成，不能再次作答。")
+        return redirect(url_for("courses", user_id=current_user_id(), course_id=quiz["course_id"]))
     questions = db.execute("SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY id", (quiz_id,)).fetchall()
     if not questions:
         flash("该测试还没有题目。")
@@ -1609,17 +1648,11 @@ def submit_quiz(quiz_id: int) -> Any:
         correct += is_correct
         answers.append((question["id"], selected, is_correct))
     score = round(correct / len(questions) * 100, 1)
-    existing = db.execute("SELECT id FROM quiz_attempts WHERE quiz_id = ? AND student_id = ?", (quiz_id, current_user_id())).fetchone()
-    if existing:
-        attempt_id = existing["id"]
-        db.execute("UPDATE quiz_attempts SET score = ?, completed_at = ? WHERE id = ?", (score, now_string(), attempt_id))
-        db.execute("DELETE FROM quiz_answers WHERE attempt_id = ?", (attempt_id,))
-    else:
-        cursor = db.execute(
-            "INSERT INTO quiz_attempts (quiz_id, student_id, score, completed_at) VALUES (?, ?, ?, ?)",
-            (quiz_id, current_user_id(), score, now_string()),
-        )
-        attempt_id = cursor.lastrowid
+    cursor = db.execute(
+        "INSERT INTO quiz_attempts (quiz_id, student_id, score, completed_at) VALUES (?, ?, ?, ?)",
+        (quiz_id, current_user_id(), score, now_string()),
+    )
+    attempt_id = cursor.lastrowid
     db.executemany(
         "INSERT INTO quiz_answers (attempt_id, question_id, selected_option, is_correct) VALUES (?, ?, ?, ?)",
         [(attempt_id, qid, selected, is_correct) for qid, selected, is_correct in answers],
